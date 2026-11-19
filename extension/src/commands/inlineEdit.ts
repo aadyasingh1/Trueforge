@@ -1,65 +1,101 @@
 import * as vscode from 'vscode';
-import * as fs from 'node:fs';
 import { createSession } from '../agent/session';
-import { assembleContext } from '../context/retriever';
-import { getSettings } from '../config/settings';
 import { guardWorkspacePath } from '../tools/pathGuard';
 import { PendingChanges } from '../review/pendingChanges';
+import { applyAccepted } from '../review/changeApplicator';
 import { TrueForgeDiffProvider } from '../review/diffProvider';
 
 export async function runInlineEdit(provider: TrueForgeDiffProvider) {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-  const instruction = await vscode.window.showInputBox({ prompt: 'Describe the inline change', ignoreFocusOut: true });
-  if (!instruction) return;
-  const selection = editor.document.getText(editor.selection);
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!workspaceRoot) return;
-  const guarded = guardWorkspacePath(editor.document.uri.fsPath, workspaceRoot);
-  if (!guarded.allowed) {
-    vscode.window.showErrorMessage(guarded.error);
-    return;
-  }
-  const context = await assembleContext(instruction, workspaceRoot, getSettings().contextTokenBudget);
   try {
-    const { client, sessionId } = await createSession();
-    const stream = await client.sessions.createTurnStream(sessionId, {
-      input: [{ type: 'user.message', content: `Selection:\n${selection}\n\nSupporting context:\n${context.items.map(item => `${item.path}\n${item.content}`).join('\n\n')}\n\nInstruction:\n${instruction}\n\nReturn a unified diff only, with a +++/--- header.` }],
-    });
-    let response = '';
-    for await (const event of stream) {
-      if (event.type === 'model.message.delta') response += event.content ?? '';
-      if (event.type === 'turn.done') break;
+    const editor = vscode.window.activeTextEditor;
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!editor || !workspaceRoot) {
+      await vscode.window.showWarningMessage('Open a file in a workspace to use inline edit.');
+      return;
     }
-    const diffMatch = response.match(/---[\\s\\S]*?\*\*\* End Patch|```diff\s*\n([\s\S]*?)```|(?:--- [^\n]+\n\+\+\+ [^\n]+\n@@[\s\S]*)/);
-    const patch = diffMatch?.[1] ?? diffMatch?.[0];
-    if (!patch) throw new Error('The agent did not return a unified diff');
-    const original = editor.document.getText();
-    const proposedMatch = patch.match(/^\+\+\+\s+[^\n]*\n([\s\S]*)/m);
-    let proposed = original;
-    if (proposedMatch) {
-      for (const line of proposedMatch[1].split(/\r?\n/)) {
-        if (line.startsWith('+') && !line.startsWith('+++')) {
-          // Placeholder: hunk application will validate the final diff.
-        }
+
+    const guarded = guardWorkspacePath(editor.document.uri.fsPath, workspaceRoot);
+    if (!guarded.allowed) {
+      await vscode.window.showWarningMessage(guarded.error);
+      return;
+    }
+
+    const instruction = await vscode.window.showInputBox({
+      prompt: 'Describe the inline change',
+      ignoreFocusOut: true,
+    });
+    if (!instruction) return;
+    if (editor.document.isDirty && !(await editor.document.save())) return;
+
+    const rel = vscode.workspace.asRelativePath(editor.document.uri, false);
+    const selection = editor.selection;
+    const selectedText = editor.document.getText(selection);
+    const selectedLines = `${selection.start.line + 1}-${selection.end.line + 1}`;
+    const existingIds = new Set(PendingChanges.getAll().map(change => change.id));
+    const prompt = [
+      `File path: ${rel}`,
+      `Selected lines: ${selectedLines}`,
+      `Selected text:\n${selectedText}`,
+      `Instruction: ${instruction}`,
+      `Call read_file with path "${rel}" to inspect the file.`,
+      `Then call propose_file_change with path "${rel}", the COMPLETE new file content (keep unrelated lines identical), and a short reason.`,
+      'Do not print code in chat.',
+    ].join('\n\n');
+
+    const change = await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: `TrueForge: working on inline edit for ${rel}…`,
+    }, async () => {
+      const { client, sessionId } = await createSession();
+      const stream = await client.sessions.createTurnStream(sessionId, {
+        input: [{ type: 'user.message', content: prompt }],
+      });
+      for await (const event of stream) {
+        if (event.type === 'turn.done') break;
       }
-    }
-    const { applyPatch } = await import('diff');
-    const applied = applyPatch(original, patch, { fuzzFactor: 0 });
-    if (applied === false) throw new Error('Could not parse or apply the agent diff');
-    proposed = applied;
-    const rel = vscode.workspace.asRelativePath(editor.document.uri);
-    const change = PendingChanges.add({
-      path: rel,
-      absPath: guarded.absPath,
-      originalContent: original,
-      proposedContent: proposed,
-      reason: instruction,
+      return PendingChanges.getAll().reverse().find(candidate =>
+        !existingIds.has(candidate.id) &&
+        (candidate.path === rel || candidate.absPath === guarded.absPath)
+      );
     });
+
+    if (!change) {
+      await vscode.window.showWarningMessage('the agent did not propose a change for this file');
+      return;
+    }
+    if (change.hunks.length === 0) {
+      PendingChanges.remove(change.id);
+      await vscode.window.showInformationMessage('No changes were proposed for this file.');
+      return;
+    }
+
     const left = editor.document.uri;
-    const right = provider.set(change.id, proposed);
+    const right = provider.set(change.id, change.proposedContent);
     await vscode.commands.executeCommand('vscode.diff', left, right, `TrueForge Inline Edit: ${rel}`);
+
+    const choice = await vscode.window.showInformationMessage(
+      change.reason,
+      'Accept & Apply',
+      'Reject'
+    );
+    if (choice === 'Accept & Apply') {
+      PendingChanges.acceptFile(change.id);
+      const result = applyAccepted([change]);
+      PendingChanges.remove(change.id);
+      if (result.applied.includes(change.path)) {
+        await vscode.window.showInformationMessage(`Inline edit applied to ${rel}.`);
+      } else if (result.conflicts.includes(change.path)) {
+        await vscode.window.showWarningMessage(`Inline edit conflict: ${rel} changed since the diff was made.`);
+      } else {
+        await vscode.window.showErrorMessage(`Failed to apply inline edit to ${rel}.`);
+      }
+    } else {
+      PendingChanges.remove(change.id);
+      await vscode.window.showInformationMessage('inline edit rejected. No files were modified.');
+    }
   } catch (error) {
-    vscode.window.showErrorMessage(error instanceof Error ? error.message : 'Inline edit failed');
+    await vscode.window.showErrorMessage(
+      `TrueForge inline edit failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
