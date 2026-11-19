@@ -13,7 +13,7 @@ npm test
 
 Open this repository in VS Code and press `F5` to launch the Extension Development Host.
 
-Start TrueForge locally on port `8790`, then register `http://127.0.0.1:7891/mcp` as the `vscode-workspace` MCP connector in TrueForge Settings. Configure the server URL in VS Code settings:
+The extension starts its MCP listener on `127.0.0.1:7891` after VS Code startup. Start TrueForge locally on port `8790`, then register `http://127.0.0.1:7891/mcp` as the `vscode-workspace` MCP connector in TrueForge Settings. Configure the server URL in VS Code settings:
 
 - `trueforge.baseUrl`: `http://localhost:8790`
 - `trueforge.model`: model name

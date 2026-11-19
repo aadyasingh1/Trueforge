@@ -12,6 +12,50 @@ export async function startMcpServer(
   port = 7891,
   onProposedChange?: (input: { path: string; proposedContent: string; reason: string }) => void
 ): Promise<http.Server> {
+  const httpServer = http.createServer(async (req, res) => {
+    if (req.url?.split('?')[0] !== '/mcp') {
+      res.writeHead(404).end();
+      return;
+    }
+    if (req.method !== 'POST') {
+      res.writeHead(405, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+        jsonrpc: '2.0',
+        error: { code: -32000, message: 'Method not allowed.' },
+        id: null,
+      }));
+      return;
+    }
+
+    try {
+      const server = buildServer(onProposedChange);
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      res.on('close', () => {
+        void transport.close();
+        void server.close();
+      });
+      await server.connect(transport);
+      await transport.handleRequest(req, res);
+    } catch (error) {
+      console.error(error);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Internal server error' },
+          id: null,
+        }));
+      }
+    }
+  });
+  await new Promise<void>((resolve, reject) => {
+    httpServer.once('error', reject);
+    httpServer.listen(port, '127.0.0.1', resolve);
+  });
+  return httpServer;
+}
+
+function buildServer(
+  onProposedChange?: (input: { path: string; proposedContent: string; reason: string }) => void
+): McpServer {
   const server = new McpServer({ name: 'vscode-workspace', version: '1.0.0' });
   (server as any).tool('list_workspace_files', { pattern: z.string().optional() }, async ({ pattern }: { pattern?: string }) => {
     const root = getWorkspaceRoot();
@@ -45,8 +89,8 @@ export async function startMcpServer(
   });
   (server as any).tool('run_command', { command: z.string(), cwd: z.string().optional() }, async ({ command, cwd }: { command: string; cwd?: string }) => {
     const root = getWorkspaceRoot();
-    const resolvedCwd = cwd ? require('node:path').resolve(root, cwd) : root;
-    if (resolvedCwd !== root && !resolvedCwd.startsWith(root + require('node:path').sep)) {
+    const resolvedCwd = cwd ? path.resolve(root, cwd) : root;
+    if (resolvedCwd !== root && !resolvedCwd.startsWith(root + path.sep)) {
       return { isError: true, content: [{ type: 'text', text: 'Working directory is outside workspace' }] };
     }
     try {
@@ -56,16 +100,5 @@ export async function startMcpServer(
       return { isError: true, content: [{ type: 'text', text: error instanceof Error ? error.message : 'Command failed' }] };
     }
   });
-
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  await server.connect(transport);
-  const httpServer = http.createServer(async (req, res) => {
-    if (req.url !== '/mcp') { res.writeHead(404).end(); return; }
-    await transport.handleRequest(req, res);
-  });
-  await new Promise<void>((resolve, reject) => {
-    httpServer.once('error', reject);
-    httpServer.listen(port, '127.0.0.1', resolve);
-  });
-  return httpServer;
+  return server;
 }

@@ -25,7 +25,8 @@ export function parseHunks(original: string, proposed: string, changeId: string)
     originalCount: parsedHunk.oldLines,
     proposedStart: parsedHunk.newStart,
     proposedCount: parsedHunk.newLines,
-    lines: parsedHunk.lines.map(line => ({
+    // Skip diff metadata like "\ No newline at end of file", which is not file content.
+    lines: parsedHunk.lines.filter(line => !line.startsWith('\\')).map(line => ({
       type: line.startsWith('+') ? 'add' : line.startsWith('-') ? 'remove' : 'context',
       content: line.slice(1),
     })),

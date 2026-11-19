@@ -6,7 +6,7 @@
   "publisher": "trueforge",
   "engines": { "vscode": "^1.95.0" },
   "categories": ["Programming Languages", "AI"],
-  "activationEvents": ["onCommand:trueforge.openPanel", "onCommand:trueforge.inlineEdit"],
+  "activationEvents": ["onStartupFinished", "onCommand:trueforge.openPanel", "onCommand:trueforge.inlineEdit"],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
