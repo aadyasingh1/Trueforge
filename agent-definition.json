@@ -1,0 +1,11 @@
+{
+  "name": "trueforge-agent",
+  "description": "Transparent workspace coding agent",
+  "manifest": {
+    "model": { "name": "anthropic/claude-sonnet-4-6" },
+    "instructions": "Inspect files with MCP tools, explain context, and propose surgical unified-diff changes. Never apply changes without review.",
+    "mcp_servers": [{ "name": "vscode-workspace", "enable_tools": ["@all"] }],
+    "config": { "iteration_limit": 20 },
+    "require_approval_for_tools": ["run_command"]
+  }
+}

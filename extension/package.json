@@ -1,0 +1,56 @@
+{
+  "name": "trueforge",
+  "displayName": "TrueForge",
+  "description": "A transparent, surgical AI coding agent.",
+  "version": "1.0.0",
+  "publisher": "trueforge",
+  "engines": { "vscode": "^1.95.0" },
+  "categories": ["Programming Languages", "AI"],
+  "activationEvents": ["onCommand:trueforge.openPanel", "onCommand:trueforge.inlineEdit"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "trueforge.openPanel", "title": "TrueForge: Open Agent Panel" },
+      { "command": "trueforge.inlineEdit", "title": "TrueForge: Inline Edit" },
+      { "command": "trueforge.applyAccepted", "title": "TrueForge: Apply Accepted Changes" },
+      { "command": "trueforge.rejectInlineEdit", "title": "TrueForge: Reject Inline Edit" },
+      { "command": "trueforge.acceptInlineEdit", "title": "TrueForge: Accept Inline Edit" },
+      { "command": "trueforge.discardAll", "title": "TrueForge: Discard All Changes" }
+    ],
+    "keybindings": [
+      { "command": "trueforge.openPanel", "key": "ctrl+shift+a", "mac": "cmd+shift+a" },
+      { "command": "trueforge.inlineEdit", "key": "ctrl+shift+i", "mac": "cmd+shift+i", "when": "editorTextFocus" }
+    ],
+    "configuration": {
+      "title": "TrueForge",
+      "properties": {
+        "trueforge.baseUrl": { "type": "string", "default": "http://localhost:8790", "description": "TrueForge server URL" },
+        "trueforge.model": { "type": "string", "default": "anthropic/claude-sonnet-4-6", "description": "Agent model" },
+        "trueforge.contextTokenBudget": { "type": "number", "default": 8000, "minimum": 500 }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p tsconfig.json && node esbuild.mjs",
+    "watch": "tsc -watch -p tsconfig.json",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@truefoundry/trueforge-sdk": "0.185.0",
+    "diff": "^8.0.2",
+    "fast-glob": "^3.3.3",
+    "ignore": "^7.0.5",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.15.21",
+    "@types/vscode": "^1.95.0",
+    "esbuild": "^0.25.5",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.4",
+    "typescript": "^5.8.3"
+  }
+}
