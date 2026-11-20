@@ -40,7 +40,9 @@ function buildServer(hooks: McpHooks): McpServer {
     const guarded = guardWorkspacePath(file);
     if (!guarded.allowed) return { isError: true, content: [{ type: 'text', text: guarded.error }] };
     if (!fs.existsSync(guarded.absPath)) return { isError: true, content: [{ type: 'text', text: 'File not found' }] };
-    const text = readFileChunk(fs.readFileSync(guarded.absPath, 'utf8'), start_line, end_line);
+    // Show the agent its own pending (not yet applied) edits, so it can check them.
+    const base = hooks.getPendingContent?.(guarded.absPath) ?? fs.readFileSync(guarded.absPath, 'utf8');
+    const text = readFileChunk(base, start_line, end_line);
     return { content: [{ type: 'text', text }] };
   });
 
