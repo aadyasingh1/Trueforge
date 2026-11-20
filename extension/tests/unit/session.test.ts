@@ -16,6 +16,7 @@ beforeEach(() => {
   jest.mocked(getSettings).mockReturnValue({
     baseUrl: 'http://localhost:8790',
     model: 'test-model',
+    fallbackModels: [],
     contextTokenBudget: 8000,
   });
   const client = {
@@ -45,6 +46,7 @@ test('uses MCP file proposals and places command approval on its MCP server', as
   const spec = request.agent.spec;
 
   expect(spec.instructions).toContain('propose_file_change');
+  expect(spec.instructions).toContain('edit_file');
   expect(spec.instructions).toContain('COMPLETE new file content');
   expect(spec.mcpServers).toEqual([
     expect.objectContaining({
@@ -55,4 +57,9 @@ test('uses MCP file proposals and places command approval on its MCP server', as
     }),
   ]);
   expect(Object.prototype.hasOwnProperty.call(spec, 'requireApprovalForTools')).toBe(false);
+});
+
+test('uses the model passed in (fallback) instead of the configured one', async () => {
+  await createSession('backup/model');
+  expect(mockCreate.mock.calls[0][0].agent.spec.model).toEqual({ name: 'backup/model' });
 });

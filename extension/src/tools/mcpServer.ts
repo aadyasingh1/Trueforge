@@ -7,41 +7,83 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod';
 import { guardWorkspacePath, getWorkspaceRoot } from './pathGuard';
 import { runCommand } from './handlers/runCommand';
+import { applySearchReplace } from './searchReplace';
 
-function buildServer(
-  onProposedChange?: (input: { path: string; proposedContent: string; reason: string }) => void
-): McpServer {
+export const TEXT_FILE_GLOB = '**/*.{ts,tsx,js,jsx,mjs,cjs,py,pyi,json,md,rst,txt,toml,cfg,ini,yml,yaml,html,css}';
+const IGNORE = ['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**', '**/__pycache__/**', '**/dist/**'];
+
+export interface McpHooks {
+  /** Called when the agent proposes new full content for a file. Nothing is written to disk. */
+  onProposedChange?: (input: { path: string; proposedContent: string; reason: string }) => void;
+  /** Returns the content of a still-pending proposal for this file, so several edit_file calls stack up. */
+  getPendingContent?: (absPath: string) => string | undefined;
+}
+
+type ProposedChangeHandler = McpHooks['onProposedChange'];
+
+// In stateless mode the MCP SDK requires a NEW server + transport for every HTTP request
+// (SDK 1.32.2 rejects a reused stateless transport with HTTP 500 on the second request).
+function buildServer(hooks: McpHooks): McpServer {
   const server = new McpServer({ name: 'vscode-workspace', version: '1.0.0' });
+
   (server as any).tool('list_workspace_files', { pattern: z.string().optional() }, async ({ pattern }: { pattern?: string }) => {
     const root = getWorkspaceRoot();
-    const files = await fg([pattern || '**/*'], { cwd: root, onlyFiles: true, ignore: ['**/node_modules/**', '**/.git/**'] });
+    const files = await fg([pattern || '**/*'], { cwd: root, onlyFiles: true, ignore: IGNORE });
     return { content: [{ type: 'text', text: JSON.stringify(files.slice(0, 500)) }] };
   });
+
   (server as any).tool('read_file', { path: z.string() }, async ({ path: file }: { path: string }) => {
     const guarded = guardWorkspacePath(file);
     if (!guarded.allowed) return { isError: true, content: [{ type: 'text', text: guarded.error }] };
     if (!fs.existsSync(guarded.absPath)) return { isError: true, content: [{ type: 'text', text: 'File not found' }] };
     return { content: [{ type: 'text', text: fs.readFileSync(guarded.absPath, 'utf8') }] };
   });
+
   (server as any).tool('search_workspace', { query: z.string() }, async ({ query }: { query: string }) => {
     const root = getWorkspaceRoot();
+    const needle = query.toLowerCase();
     const matches: string[] = [];
-    const files = await fg(['**/*.{ts,tsx,js,jsx,py,json,md,html,css}'], { cwd: root, ignore: ['**/node_modules/**', '**/.git/**'] });
+    const files = await fg([TEXT_FILE_GLOB], { cwd: root, ignore: IGNORE });
     for (const file of files) {
-      const abs = path.resolve(root, file);
-      if (fs.readFileSync(abs, 'utf8').toLowerCase().includes(query.toLowerCase())) matches.push(file);
+      let lines: string[];
+      try { lines = fs.readFileSync(path.resolve(root, file), 'utf8').split(/\r?\n/); } catch { continue; }
+      lines.forEach((line, index) => {
+        if (matches.length < 200 && line.toLowerCase().includes(needle)) {
+          matches.push(`${file}:${index + 1}: ${line.trim().slice(0, 160)}`);
+        }
+      });
       if (matches.length >= 200) break;
     }
-    return { content: [{ type: 'text', text: JSON.stringify(matches) }] };
+    return { content: [{ type: 'text', text: matches.length ? matches.join('\n') : 'No matches' }] };
   });
+
+  (server as any).tool('edit_file', {
+    path: z.string(),
+    old_string: z.string(),
+    new_string: z.string(),
+    reason: z.string(),
+  }, async ({ path: file, old_string, new_string, reason }: { path: string; old_string: string; new_string: string; reason: string }) => {
+    const guarded = guardWorkspacePath(file);
+    if (!guarded.allowed) return { isError: true, content: [{ type: 'text', text: guarded.error }] };
+    if (!fs.existsSync(guarded.absPath)) {
+      return { isError: true, content: [{ type: 'text', text: 'File not found. Use propose_file_change to create a new file.' }] };
+    }
+    const base = hooks.getPendingContent?.(guarded.absPath) ?? fs.readFileSync(guarded.absPath, 'utf8');
+    const result = applySearchReplace(base, old_string, new_string);
+    if (!result.ok) return { isError: true, content: [{ type: 'text', text: result.error }] };
+    hooks.onProposedChange?.({ path: file, proposedContent: result.content, reason });
+    return { content: [{ type: 'text', text: 'Edit registered for review (not written to disk yet).' }] };
+  });
+
   (server as any).tool('propose_file_change', {
     path: z.string(),
     proposedContent: z.string(),
     reason: z.string(),
   }, async ({ path: file, proposedContent, reason }: { path: string; proposedContent: string; reason: string }) => {
-    onProposedChange?.({ path: file, proposedContent, reason });
-    return { content: [{ type: 'text', text: 'Change registered for review' }] };
+    hooks.onProposedChange?.({ path: file, proposedContent, reason });
+    return { content: [{ type: 'text', text: 'Change registered for review (not written to disk yet).' }] };
   });
+
   (server as any).tool('run_command', { command: z.string(), cwd: z.string().optional() }, async ({ command, cwd }: { command: string; cwd?: string }) => {
     const root = getWorkspaceRoot();
     const resolvedCwd = cwd ? path.resolve(root, cwd) : root;
@@ -61,8 +103,9 @@ function buildServer(
 
 export async function startMcpServer(
   port = 7891,
-  onProposedChange?: (input: { path: string; proposedContent: string; reason: string }) => void
+  hooksOrHandler?: McpHooks | ProposedChangeHandler
 ): Promise<http.Server> {
+  const hooks: McpHooks = typeof hooksOrHandler === 'function' ? { onProposedChange: hooksOrHandler } : (hooksOrHandler ?? {});
   const httpServer = http.createServer(async (req, res) => {
     if (req.url?.split('?')[0] !== '/mcp') {
       res.writeHead(404).end();
@@ -78,7 +121,7 @@ export async function startMcpServer(
     }
 
     try {
-      const server = buildServer(onProposedChange);
+      const server = buildServer(hooks);
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => {
         void transport.close();

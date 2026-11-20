@@ -1,14 +1,20 @@
+import * as vscode from 'vscode';
 import type { AgentPanel } from '../ui/agentPanel';
 import { createSession } from '../agent/session';
 import { processTurn } from '../agent/streamProcessor';
 import { assembleContext } from '../context/retriever';
-import { getSettings } from '../config/settings';
+import { getSettings, getModelChain } from '../config/settings';
 import { getWorkspaceRoot } from '../tools/pathGuard';
+import { getLogger } from '../utils/logger';
 import type { PanelOutboundMessage } from '../../../shared/types';
 
+type Session = Awaited<ReturnType<typeof createSession>>;
+
 export class AgentMode {
-  private client: Awaited<ReturnType<typeof createSession>>['client'] | undefined;
+  private client: Session['client'] | undefined;
   private sessionId: string | undefined;
+  private sessionModel: string | undefined;
+  private cancelled = false;
 
   constructor(private panel: AgentPanel) {}
 
@@ -20,20 +26,48 @@ export class AgentMode {
     const emit = (message: PanelOutboundMessage) => this.panel.post(message);
     const root = getWorkspaceRoot();
     const context = await assembleContext(text, root, getSettings().contextTokenBudget);
-    if (!this.client || !this.sessionId) {
-      const session = await createSession();
-      this.client = session.client;
-      this.sessionId = session.sessionId;
-    }
-    const sessionId = this.sessionId;
-    if (!sessionId) throw new Error('TrueForge session could not be created');
     const enriched = `${text}\n\nSelected workspace context:\n${context.items.map(item => `${item.path}\n${item.content}`).join('\n\n')}`;
-    await processTurn(this.client, sessionId, enriched, emit, () => {
-      emit({ type: 'context_receipt', receipt: context.receipt });
-    });
+    this.cancelled = false;
+
+    // Primary model first; on failure, automatically fall back to the next configured model.
+    const models = getModelChain();
+    const currentIndex = this.sessionModel ? Math.max(0, models.indexOf(this.sessionModel)) : 0;
+    const chain = [...models.slice(currentIndex), ...models.slice(0, currentIndex)];
+    let lastError = 'Unknown error';
+
+    for (let index = 0; index < chain.length; index++) {
+      const model = chain[index];
+      const isLast = index === chain.length - 1;
+      try {
+        if (!this.client || !this.sessionId || this.sessionModel !== model) {
+          const session = await createSession(model);
+          this.client = session.client;
+          this.sessionId = session.sessionId;
+          this.sessionModel = model;
+        }
+        const result = await processTurn(this.client, this.sessionId!, enriched, emit, () => {
+          emit({ type: 'context_receipt', receipt: context.receipt });
+        }, { deferErrors: !isLast });
+        if (result.status !== 'error') return;
+        lastError = result.message || 'The model returned an error';
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+        if (isLast) throw new Error(`Model "${model}" failed: ${lastError}`);
+      }
+      if (this.cancelled) return;
+      if (isLast) return;
+      this.client = undefined;
+      this.sessionId = undefined;
+      const next = chain[index + 1];
+      const notice = `TrueForge: model "${model}" failed (${lastError}). Switching automatically to "${next}".`;
+      getLogger().appendLine(notice);
+      void vscode.window.showWarningMessage(notice);
+      emit({ type: 'text_delta', content: `⚠ ${notice}\n\n` });
+    }
   }
 
   async cancel() {
+    this.cancelled = true;
     if (this.client && this.sessionId) await this.client.sessions.cancel(this.sessionId, {});
   }
 }

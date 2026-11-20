@@ -1,101 +1,151 @@
 import * as vscode from 'vscode';
 import { createSession } from '../agent/session';
+import { getModelChain } from '../config/settings';
 import { guardWorkspacePath } from '../tools/pathGuard';
 import { PendingChanges } from '../review/pendingChanges';
-import { applyAccepted } from '../review/changeApplicator';
+import { applyAndRecord } from '../review/undoStack';
 import { TrueForgeDiffProvider } from '../review/diffProvider';
+import { getLogger } from '../utils/logger';
 
+/**
+ * Inline Edit: the user selects code, presses the keybinding and types an instruction.
+ * The TrueForge agent proposes the change through the vscode-workspace MCP tools
+ * (edit_file / propose_file_change), so nothing is written to disk until the user accepts.
+ * If the configured model fails, the next model in trueforge.fallbackModels is used automatically.
+ */
 export async function runInlineEdit(provider: TrueForgeDiffProvider) {
-  try {
-    const editor = vscode.window.activeTextEditor;
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!editor || !workspaceRoot) {
-      await vscode.window.showWarningMessage('Open a file in a workspace to use inline edit.');
-      return;
-    }
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showWarningMessage('TrueForge: open a file and select some code first.');
+    return;
+  }
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!workspaceRoot) {
+    vscode.window.showWarningMessage('TrueForge: open a folder (workspace) first.');
+    return;
+  }
+  const guarded = guardWorkspacePath(editor.document.uri.fsPath, workspaceRoot);
+  if (!guarded.allowed) {
+    vscode.window.showErrorMessage(guarded.error);
+    return;
+  }
 
-    const guarded = guardWorkspacePath(editor.document.uri.fsPath, workspaceRoot);
-    if (!guarded.allowed) {
-      await vscode.window.showWarningMessage(guarded.error);
-      return;
-    }
+  const instruction = await vscode.window.showInputBox({ prompt: 'TrueForge inline edit: describe the change', ignoreFocusOut: true });
+  if (!instruction) return;
+  if (editor.document.isDirty) await editor.document.save();
 
-    const instruction = await vscode.window.showInputBox({
-      prompt: 'Describe the inline change',
-      ignoreFocusOut: true,
-    });
-    if (!instruction) return;
-    if (editor.document.isDirty && !(await editor.document.save())) return;
+  const rel = vscode.workspace.asRelativePath(editor.document.uri, false);
+  const selection = editor.selection;
+  const selectedText = editor.document.getText(selection);
+  const startLine = selection.start.line + 1;
+  const endLine = selection.end.line + 1;
 
-    const rel = vscode.workspace.asRelativePath(editor.document.uri, false);
-    const selection = editor.selection;
-    const selectedText = editor.document.getText(selection);
-    const selectedLines = `${selection.start.line + 1}-${selection.end.line + 1}`;
-    const existingIds = new Set(PendingChanges.getAll().map(change => change.id));
-    const prompt = [
-      `File path: ${rel}`,
-      `Selected lines: ${selectedLines}`,
-      `Selected text:\n${selectedText}`,
-      `Instruction: ${instruction}`,
-      `Call read_file with path "${rel}" to inspect the file.`,
-      `Then call propose_file_change with path "${rel}", the COMPLETE new file content (keep unrelated lines identical), and a short reason.`,
-      'Do not print code in chat.',
-    ].join('\n\n');
+  const prompt = [
+    `Inline edit request for the file "${rel}".`,
+    selectedText
+      ? `Change only the selected code (lines ${startLine}-${endLine}):\n${selectedText}`
+      : 'No code is selected; make the smallest change that satisfies the instruction.',
+    `Instruction: ${instruction}`,
+    `Call edit_file with path "${rel}", old_string = the exact selected code above (or the exact part of it you change), new_string = the replacement, and a short reason.`,
+    'Do not change anything outside the selection. Do not print code in chat. After proposing, reply with one short sentence.',
+  ].join('\n');
 
-    const change = await vscode.window.withProgress({
-      location: vscode.ProgressLocation.Notification,
-      title: `TrueForge: working on inline edit for ${rel}…`,
-    }, async () => {
-      const { client, sessionId } = await createSession();
-      const stream = await client.sessions.createTurnStream(sessionId, {
-        input: [{ type: 'user.message', content: prompt }],
-      });
-      for await (const event of stream) {
-        if (event.type === 'turn.done') break;
+  const models = getModelChain();
+  const errors: string[] = [];
+  let change: ReturnType<typeof PendingChanges.get>;
+  let cancelled = false;
+
+  await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: `TrueForge: inline edit for ${rel}`, cancellable: true },
+    async (progress, token) => {
+      for (let index = 0; index < models.length && !change && !cancelled; index++) {
+        const model = models[index];
+        progress.report({ message: `asking ${model}…` });
+        const knownIds = new Set(PendingChanges.getAll().map(item => item.id));
+        try {
+          const { client, sessionId } = await createSession(model);
+          const sub = token.onCancellationRequested(() => {
+            cancelled = true;
+            void client.sessions.cancel(sessionId, {}).catch(() => undefined);
+          });
+          let turnError: string | undefined;
+          try {
+            const stream = await client.sessions.createTurnStream(sessionId, {
+              input: [{ type: 'user.message', content: prompt }],
+            });
+            for await (const event of stream) {
+              if (event.type === 'turn.done') {
+                if (event.state.status === 'error') turnError = event.state.message || 'The model returned an error';
+                break;
+              }
+            }
+          } finally {
+            sub.dispose();
+          }
+          change = PendingChanges.getAll()
+            .filter(item => !knownIds.has(item.id))
+            .filter(item => item.path === rel || item.absPath === guarded.absPath)
+            .at(-1);
+          if (!change && turnError) throw new Error(turnError);
+          if (!change && !cancelled) throw new Error('the agent finished without proposing a change');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          errors.push(`${model}: ${message}`);
+          getLogger().appendLine(`Inline edit with ${model} failed: ${message}`);
+          if (index < models.length - 1 && !cancelled) {
+            void vscode.window.showWarningMessage(
+              `TrueForge: model "${model}" failed (${message}). Switching automatically to "${models[index + 1]}".`
+            );
+          }
+        }
       }
-      return PendingChanges.getAll().reverse().find(candidate =>
-        !existingIds.has(candidate.id) &&
-        (candidate.path === rel || candidate.absPath === guarded.absPath)
-      );
-    });
-
-    if (!change) {
-      await vscode.window.showWarningMessage('the agent did not propose a change for this file');
-      return;
     }
-    if (change.hunks.length === 0) {
-      PendingChanges.remove(change.id);
-      await vscode.window.showInformationMessage('No changes were proposed for this file.');
-      return;
-    }
+  );
 
-    const left = editor.document.uri;
-    const right = provider.set(change.id, change.proposedContent);
-    await vscode.commands.executeCommand('vscode.diff', left, right, `TrueForge Inline Edit: ${rel}`);
-
-    const choice = await vscode.window.showInformationMessage(
-      change.reason,
-      'Accept & Apply',
-      'Reject'
+  if (cancelled) {
+    if (change) PendingChanges.remove(change.id);
+    vscode.window.showInformationMessage('TrueForge: inline edit cancelled. No files were changed.');
+    return;
+  }
+  if (!change) {
+    vscode.window.showErrorMessage(
+      `TrueForge could not complete the inline edit. ${errors.join(' | ')}. No files were changed.`
     );
-    if (choice === 'Accept & Apply') {
-      PendingChanges.acceptFile(change.id);
-      const result = applyAccepted([change]);
-      PendingChanges.remove(change.id);
-      if (result.applied.includes(change.path)) {
-        await vscode.window.showInformationMessage(`Inline edit applied to ${rel}.`);
-      } else if (result.conflicts.includes(change.path)) {
-        await vscode.window.showWarningMessage(`Inline edit conflict: ${rel} changed since the diff was made.`);
-      } else {
-        await vscode.window.showErrorMessage(`Failed to apply inline edit to ${rel}.`);
-      }
+    return;
+  }
+  if (change.hunks.length === 0) {
+    PendingChanges.remove(change.id);
+    vscode.window.showInformationMessage('TrueForge: the agent proposed no actual changes.');
+    return;
+  }
+
+  // Original (left) vs proposed (right). The real file is untouched until the user accepts.
+  const right = provider.set(change.id, change.proposedContent);
+  await vscode.commands.executeCommand('vscode.diff', editor.document.uri, right, `TrueForge Inline Edit: ${rel} (${change.hunks.length} hunk${change.hunks.length === 1 ? '' : 's'})`);
+
+  const choice = await vscode.window.showInformationMessage(
+    `TrueForge: ${change.reason || instruction}`,
+    'Accept & Apply',
+    'Review Hunks',
+    'Reject'
+  );
+
+  if (choice === 'Accept & Apply') {
+    PendingChanges.acceptFile(change.id);
+    const result = applyAndRecord([change]);
+    if (result.applied.length) {
+      const undo = await vscode.window.showInformationMessage(`TrueForge: applied inline edit to ${rel}.`, 'Undo');
+      if (undo === 'Undo') await vscode.commands.executeCommand('trueforge.undoLastApply');
+    } else if (result.conflicts.length) {
+      vscode.window.showErrorMessage(`TrueForge: ${rel} changed since the edit was proposed. Nothing was written.`);
     } else {
-      PendingChanges.remove(change.id);
-      await vscode.window.showInformationMessage('inline edit rejected. No files were modified.');
+      vscode.window.showErrorMessage(`TrueForge: could not apply the edit to ${rel}. Nothing was written.`);
     }
-  } catch (error) {
-    await vscode.window.showErrorMessage(
-      `TrueForge inline edit failed: ${error instanceof Error ? error.message : String(error)}`
-    );
+  } else if (choice === 'Review Hunks') {
+    // Per-hunk accept/reject happens in the TrueForge panel, then Apply Accepted.
+    await vscode.commands.executeCommand('trueforge.openPanel');
+  } else {
+    PendingChanges.remove(change.id);
+    vscode.window.showInformationMessage('TrueForge: inline edit rejected. No files were modified.');
   }
 }

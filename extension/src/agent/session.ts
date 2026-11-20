@@ -1,33 +1,40 @@
 import { createTrueForgeClient } from './client';
 import { getSettings } from '../config/settings';
+import agentDefinition from '../../../agent-definition.json';
 
-export async function createSession() {
+interface DefinitionMcpServer {
+  name: string;
+  enable_tools?: string[];
+  preload?: boolean;
+  require_approval_for_tools?: string[];
+}
+
+/**
+ * Builds the TrueForge agent spec from agent-definition.json (repo root), so the
+ * definition committed to the repository is exactly the one the extension uses.
+ * The model comes from the `trueforge.model` setting (or a fallback model) so the
+ * extension works with whatever model TrueForge is configured with.
+ */
+export function buildAgentSpec(modelName: string) {
+  const spec = agentDefinition.spec;
+  return {
+    model: { name: modelName },
+    instructions: spec.instructions.join('\n'),
+    mcpServers: (spec.mcp_servers as DefinitionMcpServer[]).map(server => ({
+      name: server.name,
+      enableTools: server.enable_tools ?? ['@all'],
+      preload: server.preload ?? true,
+      requireApprovalForTools: server.require_approval_for_tools ?? [],
+    })),
+    config: { iterationLimit: spec.config.iteration_limit },
+  };
+}
+
+export async function createSession(modelName?: string) {
   const client = createTrueForgeClient();
   const settings = getSettings();
   const response = await client.sessions.create({
-    agent: {
-      spec: {
-        model: { name: settings.model },
-        instructions: [
-          "You are TrueForge, a transparent coding agent working inside the user's VS Code workspace.",
-          'You can only change files through the vscode-workspace tools.',
-          'Workflow for every code change request:',
-          '1. Use read_file (and list_workspace_files / search_workspace if needed) to inspect the relevant files.',
-          '2. Make the smallest, surgical change that fixes the problem. Do not reformat or touch unrelated code.',
-          '3. ALWAYS call propose_file_change with the path, the COMPLETE new file content, and a short reason.',
-          '   Never just print the corrected code in chat. The user reviews and accepts proposed changes in VS Code.',
-          '4. After proposing, reply with a one or two sentence summary of what you changed and why.',
-        ].join('\n'),
-        mcpServers: [{
-          name: 'vscode-workspace',
-          enableTools: ['@all'],
-          // Preload loads all tool schemas up front so the model can call them directly.
-          preload: true,
-          // Only run_command needs approval; proposed changes still require user acceptance in the panel.
-          requireApprovalForTools: ['run_command'],
-        }],
-      },
-    } as any,
+    agent: { spec: buildAgentSpec(modelName ?? settings.model) } as any,
   });
   return { client, sessionId: (response as any).data?.id ?? (response as any).id };
 }

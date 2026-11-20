@@ -13,7 +13,7 @@ export async function assembleContext(query: string, workspaceRoot: string, budg
   const paths = await scanFiles(workspaceRoot);
   const items: ContextItem[] = [];
   for (const absPath of paths) {
-    if (!/\.(ts|tsx|js|jsx|py|json|md|css|html)$/.test(absPath)) continue;
+    if (!/\.(ts|tsx|js|jsx|mjs|cjs|py|pyi|json|md|rst|txt|toml|cfg|ini|yml|yaml|css|html)$/.test(absPath)) continue;
     let content = '';
     try { content = fs.readFileSync(absPath, 'utf8'); } catch { continue; }
     const lower = content.toLowerCase();

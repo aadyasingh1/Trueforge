@@ -15,17 +15,20 @@
       { "command": "trueforge.applyAccepted", "title": "TrueForge: Apply Accepted Changes" },
       { "command": "trueforge.rejectInlineEdit", "title": "TrueForge: Reject Inline Edit" },
       { "command": "trueforge.acceptInlineEdit", "title": "TrueForge: Accept Inline Edit" },
-      { "command": "trueforge.discardAll", "title": "TrueForge: Discard All Changes" }
+      { "command": "trueforge.discardAll", "title": "TrueForge: Discard All Changes" },
+      { "command": "trueforge.undoLastApply", "title": "TrueForge: Undo Last Apply" }
     ],
     "keybindings": [
       { "command": "trueforge.openPanel", "key": "ctrl+shift+a", "mac": "cmd+shift+a" },
-      { "command": "trueforge.inlineEdit", "key": "ctrl+shift+i", "mac": "cmd+shift+i", "when": "editorTextFocus" }
+      { "command": "trueforge.inlineEdit", "key": "ctrl+alt+e", "mac": "ctrl+cmd+e", "when": "editorTextFocus" },
+      { "command": "trueforge.undoLastApply", "key": "ctrl+alt+z", "mac": "ctrl+cmd+z" }
     ],
     "configuration": {
       "title": "TrueForge",
       "properties": {
         "trueforge.baseUrl": { "type": "string", "default": "http://localhost:8790", "description": "TrueForge server URL" },
-        "trueforge.model": { "type": "string", "default": "anthropic/claude-sonnet-4-6", "description": "Agent model" },
+        "trueforge.model": { "type": "string", "default": "openrouter/north-mini-code", "description": "Primary model, as named in TrueForge (provider/model)" },
+        "trueforge.fallbackModels": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Models tried automatically, in order, if the primary model fails (provider/model as named in TrueForge)" },
         "trueforge.contextTokenBudget": { "type": "number", "default": 8000, "minimum": 500 }
       }
     }

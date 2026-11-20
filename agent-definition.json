@@ -1,11 +1,27 @@
 {
-  "name": "trueforge-agent",
-  "description": "Transparent workspace coding agent",
-  "manifest": {
-    "model": { "name": "anthropic/claude-sonnet-4-6" },
-    "instructions": "Inspect files with MCP tools, explain context, and propose surgical unified-diff changes. Never apply changes without review.",
-    "mcp_servers": [{ "name": "vscode-workspace", "enable_tools": ["@all"] }],
-    "config": { "iteration_limit": 20 },
-    "require_approval_for_tools": ["run_command"]
+  "name": "trueforge-vscode-agent",
+  "description": "Editor-native coding agent for VS Code. The extension builds its TrueForge session from this file (extension/src/agent/session.ts), so this is exactly the agent definition used in the demo.",
+  "spec": {
+    "model": { "name": "openrouter/north-mini-code" },
+    "instructions": [
+      "You are TrueForge, a careful coding agent working inside the user's VS Code workspace.",
+      "You can only read and change files through the vscode-workspace MCP tools. Never print code for the user to copy.",
+      "Workflow for every request:",
+      "1. Find the relevant code yourself: use search_workspace and list_workspace_files, then read_file. The user may not name any files.",
+      "2. Plan the change. Multi-file tasks (implementation, tests, docs) are normal: find every file that needs to change.",
+      "3. To change an existing file, call edit_file with an old_string copied exactly from read_file output (include enough surrounding lines to be unique) and the new_string. Call edit_file several times for several places; edits to the same file stack up.",
+      "4. Only to create a NEW file, call propose_file_change with the path, the COMPLETE new file content, and a short reason.",
+      "5. Make the smallest, surgical change. Do not reformat or touch unrelated code. Never invent symbols: read before you edit.",
+      "6. Nothing is written to disk until the user reviews and accepts your proposals in VS Code. After proposing, reply with a short summary of each file you changed and why."
+    ],
+    "mcp_servers": [
+      {
+        "name": "vscode-workspace",
+        "enable_tools": ["@all"],
+        "preload": true,
+        "require_approval_for_tools": ["run_command"]
+      }
+    ],
+    "config": { "iteration_limit": 60 }
   }
 }

@@ -1,6 +1,11 @@
 import type { TrueForge } from '@truefoundry/trueforge-sdk';
 import type { PanelOutboundMessage } from '../../../shared/types';
 
+export interface TurnResult {
+  status: 'done' | 'cancelled' | 'error';
+  message?: string;
+}
+
 interface ToolCallState {
   id?: string;
   name: string;
@@ -18,8 +23,9 @@ export async function processTurn(
   sessionId: string,
   input: string,
   emit: (message: PanelOutboundMessage) => void,
-  onStreamStarted?: () => void
-) {
+  onStreamStarted?: () => void,
+  options: { deferErrors?: boolean } = {}
+): Promise<TurnResult> {
   const stream = await client.sessions.createTurnStream(sessionId, {
     input: [{ type: 'user.message', content: input }],
   });
@@ -88,28 +94,34 @@ export async function processTurn(
       });
     } else if (event.type === 'turn.done') {
       sawTerminalEvent = true;
+      if (event.state.status === 'error' && options.deferErrors) {
+        // The caller will retry with a fallback model; it reports the error itself.
+        return { status: 'error', message: event.state.message };
+      }
       emit({ type: 'text_done', fullContent: full });
       if (event.state.status === 'error') {
         emit({ type: 'turn_done', status: 'error', message: event.state.message });
+        return { status: 'error', message: event.state.message };
       } else if (event.state.status === 'cancelled') {
         emit({
           type: 'turn_done',
           status: 'cancelled',
           message: `Cancellation confirmed: ${event.state.reason}`,
         });
+        return { status: 'cancelled', message: event.state.reason };
       } else {
         emit({ type: 'turn_done', status: 'done' });
       }
-      return;
+      return { status: 'done' };
     }
   }
 
+  const missingTerminal = 'The event stream ended without a terminal turn event.';
+  if (!sawTerminalEvent && options.deferErrors) return { status: 'error', message: missingTerminal };
   emit({ type: 'text_done', fullContent: full });
   if (!sawTerminalEvent) {
-    emit({
-      type: 'turn_done',
-      status: 'error',
-      message: 'The event stream ended without a terminal turn event.',
-    });
+    emit({ type: 'turn_done', status: 'error', message: missingTerminal });
+    return { status: 'error', message: missingTerminal };
   }
+  return { status: 'done' };
 }

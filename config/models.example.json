@@ -1,0 +1,31 @@
+{
+  "_comment": "Example model configuration. NO real keys here: enter API keys only in TrueForge Settings > Models (http://localhost:8790/settings). The extension never calls a model provider directly.",
+  "trueforge_custom_providers": [
+    {
+      "name": "openrouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "<your OpenRouter key, entered in TrueForge only>",
+      "models": [
+        { "model_id": "cohere/north-mini-code:free", "name": "north-mini-code", "context_length": 128000, "max_output_tokens": 4096 }
+      ]
+    },
+    {
+      "name": "openrouter-broken",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "sk-or-INVALID-used-only-for-the-Task-C-resilience-demo",
+      "models": [
+        { "model_id": "cohere/north-mini-code:free", "name": "north-mini-code", "context_length": 128000, "max_output_tokens": 4096 }
+      ]
+    }
+  ],
+  "vscode_settings_json": {
+    "trueforge.baseUrl": "http://localhost:8790",
+    "trueforge.model": "openrouter/north-mini-code",
+    "trueforge.fallbackModels": ["<a second model configured in TrueForge, e.g. another-provider/another-model>"],
+    "trueforge.contextTokenBudget": 8000
+  },
+  "task_c_demo_settings_json": {
+    "trueforge.model": "openrouter-broken/north-mini-code",
+    "trueforge.fallbackModels": ["openrouter/north-mini-code"]
+  }
+}
