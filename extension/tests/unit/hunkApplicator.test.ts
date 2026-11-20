@@ -8,6 +8,7 @@ function change(original: string, proposed: string): PendingChange {
     id: changeId,
     path: 'test.txt',
     absPath: '/test.txt',
+    originalExists: true,
     originalContent: original,
     originalHash: '',
     proposedContent: proposed,

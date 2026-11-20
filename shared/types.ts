@@ -14,6 +14,10 @@ export interface ContextItem {
 export interface ContextReceipt {
   items: ContextItem[];
   excluded: number;
+  excludedItems?: Array<{
+    path: string;
+    reason: 'context_budget';
+  }>;
   totalTokens: number;
   budget: number;
   queryTerms: string[];
@@ -40,6 +44,7 @@ export interface PendingChange {
   id: string;
   path: string;
   absPath: string;
+  originalExists: boolean;
   originalContent: string;
   originalHash: string;
   proposedContent: string;
@@ -51,15 +56,24 @@ export interface PendingChange {
 export type PanelOutboundMessage =
   | { type: 'text_delta'; content: string }
   | { type: 'text_done'; fullContent: string }
-  | { type: 'tool_start'; id: string; name: string; argsPreview: string }
-  | { type: 'tool_done'; id: string; resultPreview: string; isError: boolean }
+  | { type: 'tool_start'; id: string; name: string; argsPreview: string; status?: 'requested' | 'approval_required' }
+  | { type: 'tool_done'; id: string; name?: string; resultPreview: string; isError?: boolean }
   | { type: 'context_receipt'; receipt: ContextReceipt }
   | { type: 'pending_change'; change: PendingChange }
   | { type: 'change_removed'; changeId: string }
   | { type: 'turn_done'; status: 'done' | 'cancelled' | 'error'; message?: string }
   | { type: 'cancelled_with_proposals'; count: number }
   | { type: 'error'; message: string; recoverable: boolean }
-  | { type: 'apply_result'; success: boolean; applied: string[]; failed: string[]; conflicts: string[] };
+  | {
+      type: 'apply_result';
+      success: boolean;
+      applied: string[];
+      restored: string[];
+      unchanged: string[];
+      manualRecovery: string[];
+      failed: string[];
+      conflicts: string[];
+    };
 
 export type PanelInboundMessage =
   | { type: 'submit'; text: string }

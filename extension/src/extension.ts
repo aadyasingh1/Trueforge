@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import * as fs from 'node:fs';
 import { getLogger } from './utils/logger';
 import { AgentPanel } from './ui/agentPanel';
 import { AgentMode } from './commands/agentMode';
@@ -7,6 +6,7 @@ import { runInlineEdit } from './commands/inlineEdit';
 import { TrueForgeDiffProvider } from './review/diffProvider';
 import { PendingChanges } from './review/pendingChanges';
 import { applyAccepted } from './review/changeApplicator';
+import { captureOriginalFile } from './review/conflictDetector';
 import { startMcpServer } from './tools/mcpServer';
 import { guardWorkspacePath } from './tools/pathGuard';
 
@@ -24,15 +24,19 @@ export async function activate(context: vscode.ExtensionContext) {
   let agentMode: AgentMode | undefined;
   const openPanel = () => {
     if (!panel) {
-      panel = new AgentPanel(context.extensionUri);
-      agentMode = new AgentMode(panel);
-      panel.setInboundHandler(async message => {
+      const newPanel = new AgentPanel(context.extensionUri);
+      panel = newPanel;
+      if (agentMode) agentMode.setPanel(newPanel);
+      else agentMode = new AgentMode(newPanel);
+      newPanel.setInboundHandler(async message => {
         if (message.type === 'submit') {
           try { await agentMode?.submit(message.text); } catch (error) {
-            panel?.post({ type: 'error', message: error instanceof Error ? error.message : 'Request failed', recoverable: true });
+            newPanel.post({ type: 'error', message: error instanceof Error ? error.message : 'Request failed', recoverable: true });
           }
         } else if (message.type === 'cancel') {
-          await agentMode?.cancel();
+          try { await agentMode?.cancel(); } catch (error) {
+            newPanel.post({ type: 'error', message: error instanceof Error ? error.message : 'Cancellation failed', recoverable: true });
+          }
         } else if (message.type === 'accept_hunk') {
           PendingChanges.acceptHunk(message.changeId, message.hunkId);
         } else if (message.type === 'reject_hunk') {
@@ -43,12 +47,18 @@ export async function activate(context: vscode.ExtensionContext) {
           PendingChanges.rejectFile(message.changeId);
         } else if (message.type === 'apply_accepted') {
           const result = applyAccepted(PendingChanges.getAll());
-          panel?.post({ type: 'apply_result', ...result });
+          newPanel.post({ type: 'apply_result', ...result });
         } else if (message.type === 'discard_all') {
-          for (const change of PendingChanges.getAll()) panel?.post({ type: 'change_removed', changeId: change.id });
+          for (const change of PendingChanges.getAll()) newPanel.post({ type: 'change_removed', changeId: change.id });
           PendingChanges.clear();
         }
       });
+      newPanel.onDidDispose(() => {
+        if (panel === newPanel) panel = undefined;
+      });
+      for (const change of PendingChanges.getAll()) {
+        newPanel.post({ type: 'pending_change', change });
+      }
     }
     panel.reveal();
   };
@@ -77,11 +87,11 @@ export async function activate(context: vscode.ExtensionContext) {
       if (!root) return;
       const guarded = guardWorkspacePath(input.path, root);
       if (!guarded.allowed) return;
-      const original = fs.existsSync(guarded.absPath) ? fs.readFileSync(guarded.absPath, 'utf8') : '';
+      const original = captureOriginalFile(guarded.absPath);
       const change = PendingChanges.add({
         path: vscode.workspace.asRelativePath(guarded.absPath),
         absPath: guarded.absPath,
-        originalContent: original,
+        ...original,
         proposedContent: input.proposedContent,
         reason: input.reason,
       });

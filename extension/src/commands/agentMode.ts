@@ -12,11 +12,14 @@ export class AgentMode {
 
   constructor(private panel: AgentPanel) {}
 
+  setPanel(panel: AgentPanel) {
+    this.panel = panel;
+  }
+
   async submit(text: string) {
     const emit = (message: PanelOutboundMessage) => this.panel.post(message);
     const root = getWorkspaceRoot();
     const context = await assembleContext(text, root, getSettings().contextTokenBudget);
-    emit({ type: 'context_receipt', receipt: context.receipt });
     if (!this.client || !this.sessionId) {
       const session = await createSession();
       this.client = session.client;
@@ -25,7 +28,9 @@ export class AgentMode {
     const sessionId = this.sessionId;
     if (!sessionId) throw new Error('TrueForge session could not be created');
     const enriched = `${text}\n\nSelected workspace context:\n${context.items.map(item => `${item.path}\n${item.content}`).join('\n\n')}`;
-    await processTurn(this.client, sessionId, enriched, emit);
+    await processTurn(this.client, sessionId, enriched, emit, () => {
+      emit({ type: 'context_receipt', receipt: context.receipt });
+    });
   }
 
   async cancel() {

@@ -24,11 +24,19 @@ export const PendingChanges = {
   remove: (id: string) => changes.delete(id),
   acceptHunk(changeId: string, hunkId: string) {
     const change = changes.get(changeId);
-    if (change) change.hunks.find(hunk => hunk.id === hunkId)!.accepted = true;
+    const hunk = change?.hunks.find(item => item.id === hunkId);
+    if (change && hunk) {
+      change.fileDecision = null;
+      hunk.accepted = true;
+    }
   },
   rejectHunk(changeId: string, hunkId: string) {
     const change = changes.get(changeId);
-    if (change) change.hunks.find(hunk => hunk.id === hunkId)!.accepted = false;
+    const hunk = change?.hunks.find(item => item.id === hunkId);
+    if (change && hunk) {
+      change.fileDecision = null;
+      hunk.accepted = false;
+    }
   },
   acceptFile(changeId: string) {
     const change = changes.get(changeId);

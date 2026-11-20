@@ -10,6 +10,14 @@ test('empty diff returns no hunks', () => {
   expect(parseHunks('same\n', 'same\n', 'change')).toEqual([]);
 });
 
+test('does not treat no-newline markers as hunk content', () => {
+  const hunks = parseHunks('old', 'new', 'change');
+  expect(hunks[0].lines).toEqual([
+    { type: 'remove', content: 'old' },
+    { type: 'add', content: 'new' },
+  ]);
+});
+
 test('normalizes and restores CRLF', () => {
   const normalized = normalizeLineEndings('a\r\nb\r\n');
   expect(normalized.wasCRLF).toBe(true);
