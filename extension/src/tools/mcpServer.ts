@@ -8,10 +8,9 @@ import { z } from 'zod';
 import { guardWorkspacePath, getWorkspaceRoot } from './pathGuard';
 import { runCommand } from './handlers/runCommand';
 
-export async function startMcpServer(
-  port = 7891,
+function buildServer(
   onProposedChange?: (input: { path: string; proposedContent: string; reason: string }) => void
-): Promise<http.Server> {
+): McpServer {
   const server = new McpServer({ name: 'vscode-workspace', version: '1.0.0' });
   (server as any).tool('list_workspace_files', { pattern: z.string().optional() }, async ({ pattern }: { pattern?: string }) => {
     const root = getWorkspaceRoot();
@@ -57,8 +56,13 @@ export async function startMcpServer(
     }
   });
 
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  await server.connect(transport);
+  return server;
+}
+
+export async function startMcpServer(
+  port = 7891,
+  onProposedChange?: (input: { path: string; proposedContent: string; reason: string }) => void
+): Promise<http.Server> {
   const httpServer = http.createServer(async (req, res) => {
     if (req.url?.split('?')[0] !== '/mcp') {
       res.writeHead(404).end();
@@ -74,6 +78,13 @@ export async function startMcpServer(
     }
 
     try {
+      const server = buildServer(onProposedChange);
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      res.on('close', () => {
+        void transport.close();
+        void server.close();
+      });
+      await server.connect(transport);
       await transport.handleRequest(req, res);
     } catch (error) {
       console.error(error);
