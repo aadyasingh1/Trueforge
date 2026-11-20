@@ -7,7 +7,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod';
 import { guardWorkspacePath, getWorkspaceRoot } from './pathGuard';
 import { runCommand } from './handlers/runCommand';
-import { applySearchReplace } from './searchReplace';
+import { applySearchReplace, readFileChunk, buildMatcher } from './searchReplace';
 
 export const TEXT_FILE_GLOB = '**/*.{ts,tsx,js,jsx,mjs,cjs,py,pyi,json,md,rst,txt,toml,cfg,ini,yml,yaml,html,css}';
 const IGNORE = ['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**', '**/__pycache__/**', '**/dist/**'];
@@ -32,23 +32,28 @@ function buildServer(hooks: McpHooks): McpServer {
     return { content: [{ type: 'text', text: JSON.stringify(files.slice(0, 500)) }] };
   });
 
-  (server as any).tool('read_file', { path: z.string() }, async ({ path: file }: { path: string }) => {
+  (server as any).tool('read_file', {
+    path: z.string(),
+    start_line: z.number().int().positive().optional(),
+    end_line: z.number().int().positive().optional(),
+  }, async ({ path: file, start_line, end_line }: { path: string; start_line?: number; end_line?: number }) => {
     const guarded = guardWorkspacePath(file);
     if (!guarded.allowed) return { isError: true, content: [{ type: 'text', text: guarded.error }] };
     if (!fs.existsSync(guarded.absPath)) return { isError: true, content: [{ type: 'text', text: 'File not found' }] };
-    return { content: [{ type: 'text', text: fs.readFileSync(guarded.absPath, 'utf8') }] };
+    const text = readFileChunk(fs.readFileSync(guarded.absPath, 'utf8'), start_line, end_line);
+    return { content: [{ type: 'text', text }] };
   });
 
   (server as any).tool('search_workspace', { query: z.string() }, async ({ query }: { query: string }) => {
     const root = getWorkspaceRoot();
-    const needle = query.toLowerCase();
+    const matcher = buildMatcher(query);
     const matches: string[] = [];
     const files = await fg([TEXT_FILE_GLOB], { cwd: root, ignore: IGNORE });
     for (const file of files) {
       let lines: string[];
       try { lines = fs.readFileSync(path.resolve(root, file), 'utf8').split(/\r?\n/); } catch { continue; }
       lines.forEach((line, index) => {
-        if (matches.length < 200 && line.toLowerCase().includes(needle)) {
+        if (matches.length < 200 && matcher(line)) {
           matches.push(`${file}:${index + 1}: ${line.trim().slice(0, 160)}`);
         }
       });

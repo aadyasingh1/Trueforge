@@ -61,7 +61,8 @@ export async function processTurn(
       emit({ type: 'text_delta', content });
       for (const delta of event.toolCalls ?? []) {
         let call = callsByIndex.get(delta.index);
-        if (!call) {
+        if (!call || (delta.id && call.id && call.id !== delta.id)) {
+          // A new tool call reusing this index (next model message): start fresh.
           call = { name: '', arguments: '' };
           callsByIndex.set(delta.index, call);
         }
@@ -76,6 +77,7 @@ export async function processTurn(
       for (const call of event.toolCalls ?? []) {
         rememberCall(call.id, call.function.name, call.function.arguments);
       }
+      callsByIndex.clear();
     } else if (event.type === 'tool.approval_required') {
       for (const toolCall of event.toolCalls) {
         if (!startedCalls.has(toolCall.id)) emitToolRequest(toolCall.id, 'approval_required');

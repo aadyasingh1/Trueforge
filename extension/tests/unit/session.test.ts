@@ -26,7 +26,7 @@ beforeEach(() => {
   mockCreate.mockResolvedValue({ data: { id: 'session-1' } });
 });
 
-test('uses MCP file proposals and places command approval on its MCP server', async () => {
+test('uses MCP file proposals without TrueForge approval gates (the panel review is the gate)', async () => {
   await createSession();
 
   const request = mockCreate.mock.calls[0][0] as {
@@ -53,7 +53,7 @@ test('uses MCP file proposals and places command approval on its MCP server', as
       name: 'vscode-workspace',
       enableTools: ['@all'],
       preload: true,
-      requireApprovalForTools: ['run_command'],
+      requireApprovalForTools: [],
     }),
   ]);
   expect(Object.prototype.hasOwnProperty.call(spec, 'requireApprovalForTools')).toBe(false);
