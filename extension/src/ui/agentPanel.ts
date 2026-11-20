@@ -7,8 +7,8 @@ export class AgentPanel {
 
   constructor(extensionUri: vscode.Uri) {
     this.panel = vscode.window.createWebviewPanel(
-      'trueforgeAgent',
-      'TrueForge',
+      'voltixAgent',
+      'Voltix',
       vscode.ViewColumn.Two,
       { enableScripts: true, retainContextWhenHidden: true }
     );
@@ -122,7 +122,7 @@ export class AgentPanel {
   </style>
 </head>
 <body>
-  <h1>TrueForge</h1>
+  <h1>Voltix</h1>
   <form id="prompt-form">
     <label for="input">Describe a task</label>
     <textarea id="input" placeholder="Describe a task..." rows="3"></textarea>

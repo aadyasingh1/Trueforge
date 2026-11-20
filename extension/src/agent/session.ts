@@ -12,7 +12,7 @@ interface DefinitionMcpServer {
 /**
  * Builds the TrueForge agent spec from agent-definition.json (repo root), so the
  * definition committed to the repository is exactly the one the extension uses.
- * The model comes from the `trueforge.model` setting (or a fallback model) so the
+ * The model comes from the `voltix.model` setting (or a fallback model) so the
  * extension works with whatever model TrueForge is configured with.
  */
 export function buildAgentSpec(modelName: string) {

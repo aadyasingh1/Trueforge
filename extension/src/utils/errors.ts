@@ -1,6 +1,6 @@
-export class TrueForgeError extends Error {
+export class VoltixError extends Error {
   constructor(message: string, public readonly recoverable = true) {
     super(message);
-    this.name = 'TrueForgeError';
+    this.name = 'VoltixError';
   }
 }

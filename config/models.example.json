@@ -19,13 +19,13 @@
     }
   ],
   "vscode_settings_json": {
-    "trueforge.baseUrl": "http://localhost:8790",
-    "trueforge.model": "openrouter/north-mini-code",
-    "trueforge.fallbackModels": ["<a second model configured in TrueForge, e.g. another-provider/another-model>"],
-    "trueforge.contextTokenBudget": 8000
+    "voltix.baseUrl": "http://localhost:8790",
+    "voltix.model": "openrouter/north-mini-code",
+    "voltix.fallbackModels": ["<a second model configured in TrueForge, e.g. another-provider/another-model>"],
+    "voltix.contextTokenBudget": 8000
   },
   "task_c_demo_settings_json": {
-    "trueforge.model": "openrouter-broken/north-mini-code",
-    "trueforge.fallbackModels": ["openrouter/north-mini-code"]
+    "voltix.model": "openrouter-broken/north-mini-code",
+    "voltix.fallbackModels": ["openrouter/north-mini-code"]
   }
 }

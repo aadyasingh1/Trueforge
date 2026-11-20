@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import { assembleContext } from '../../src/context/retriever';
 
 test('receipt records the exact relevant excerpt sent as context', async () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'trueforge-context-'));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'voltix-context-'));
   try {
     const sourcePath = path.join(workspace, 'src', 'service.ts');
     fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
@@ -32,7 +32,7 @@ test('receipt records the exact relevant excerpt sent as context', async () => {
 });
 
 test('receipt reports context excluded because of the token budget', async () => {
-  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'trueforge-context-budget-'));
+  const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'voltix-context-budget-'));
   try {
     const sourcePath = path.join(workspace, 'src', 'service.ts');
     fs.mkdirSync(path.dirname(sourcePath), { recursive: true });

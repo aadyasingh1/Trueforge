@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 export function getSettings() {
-  const config = vscode.workspace.getConfiguration('trueforge');
+  const config = vscode.workspace.getConfiguration('voltix');
   return {
     baseUrl: config.get<string>('baseUrl', 'http://localhost:8790'),
     model: config.get<string>('model', 'openrouter/north-mini-code'),

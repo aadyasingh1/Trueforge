@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { guardWorkspacePath } from '../../src/tools/pathGuard';
 
-const root = path.resolve('/tmp/trueforge-workspace');
+const root = path.resolve('/tmp/voltix-workspace');
 
 test('allows relative workspace paths', () => {
   expect(guardWorkspacePath('src/app.ts', root).allowed).toBe(true);

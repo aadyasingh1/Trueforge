@@ -42,7 +42,7 @@ function createFile(relativePath: string, content: string): string {
 }
 
 beforeEach(() => {
-  workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'trueforge-apply-'));
+  workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'voltix-apply-'));
 });
 
 afterEach(() => {

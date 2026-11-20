@@ -40,7 +40,7 @@ function addUnique(values: string[], value: string) {
 function makeTempPath(targetPath: string): string {
   return path.join(
     path.dirname(targetPath),
-    `.${path.basename(targetPath)}.trueforge-${randomUUID()}.tmp`
+    `.${path.basename(targetPath)}.voltix-${randomUUID()}.tmp`
   );
 }
 

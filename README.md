@@ -1,4 +1,4 @@
-# TrueForge
+# Voltix
 
 **A transparent, surgical AI coding agent for VS Code — it proposes, you approve.**
 
@@ -8,10 +8,10 @@
 [![TrueFoundry TrueForge](https://img.shields.io/badge/Backend-TrueFoundry_TrueForge-5B3CC4)](https://www.truefoundry.com/)
 [![Techfest 2026–27 Forge-a-thon](https://img.shields.io/badge/Techfest-2026%E2%80%9327_Forge--a--thon-111827)](https://techfest.org/)
 
-Many AI coding agents can make changes without a review step. TrueForge assembles relevant workspace context, stages localized changes through MCP, and writes proposed code changes only after you accept them. Review changes by hunk or file before applying them.
+Many AI coding agents can make changes without a review step. Voltix assembles relevant workspace context, stages localized changes through MCP, and writes proposed code changes only after you accept them. Review changes by hunk or file before applying them.
 
-<!-- Record and add the TrueForge demo GIF at docs/demo.gif. -->
-![TrueForge demo](docs/demo.gif)
+<!-- Record and add the Voltix demo GIF at docs/demo.gif. -->
+![Voltix demo](docs/demo.gif)
 
 **Built for:** Techfest 2026–27 TrueFoundry Forge-a-thon.
 
@@ -112,9 +112,9 @@ Agent server listening on http://localhost:8790
 
 ### 3. Launch the extension
 
-Open the repository root in VS Code and press **F5** using the **Run TrueForge Extension** configuration in `.vscode/launch.json`. In the Extension Development Host, open the project folder you want TrueForge to work in; the extension requires an open workspace folder.
+Open the repository root in VS Code and press **F5** using the **Run Voltix Extension** configuration in `.vscode/launch.json`. In the Extension Development Host, open the project folder you want Voltix to work in; the extension requires an open workspace folder.
 
-### 4. Open the TrueForge panel
+### 4. Open the Voltix panel
 
 Open the panel with **Cmd+Shift+A** on macOS or **Ctrl+Shift+A** on Windows/Linux. This command activates the extension if needed; the extension also declares `onStartupFinished` activation. The MCP server starts during extension activation.
 
@@ -148,20 +148,20 @@ The connector should show **Connected** with five tools.
 
 ### 7. Select the model in VS Code
 
-Set `trueforge.model` to `openrouter/north-mini-code` in VS Code Settings.
+Set `voltix.model` to `openrouter/north-mini-code` in VS Code Settings.
 
 ## Usage
 
 ### Agent Mode
 
-1. Open the TrueForge panel and describe a task.
+1. Open the Voltix panel and describe a task.
 2. Review the context receipt and proposed diff card.
 3. Accept or reject hunks, or accept or reject the whole file.
 4. Choose **Apply Accepted** to write accepted changes.
 
 ### Inline Edit
 
-1. Select code and run **TrueForge: Inline Edit** from the Command Palette.
+1. Select code and run **Voltix: Inline Edit** from the Command Palette.
 2. Enter an instruction and review the side-by-side diff.
 3. Choose **Accept & Apply** or **Reject**.
 
@@ -179,7 +179,7 @@ function average(numbers) {
 }
 ```
 
-TrueForge can propose the localized fix:
+Voltix can propose the localized fix:
 
 ```diff
 -  for (let i = 0; i <= numbers.length; i++) total += numbers[i];
@@ -190,15 +190,15 @@ TrueForge can propose the localized fix:
 
 | Setting | Default | Description |
 |---|---|---|
-| `trueforge.baseUrl` | `http://localhost:8790` | URL of the TrueForge backend. |
-| `trueforge.model` | `anthropic/claude-sonnet-4-6` | Configured provider and model name. |
-| `trueforge.contextTokenBudget` | `8000` | Maximum token estimate for selected workspace context; minimum `500`. |
+| `voltix.baseUrl` | `http://localhost:8790` | URL of the TrueForge backend. |
+| `voltix.model` | `anthropic/claude-sonnet-4-6` | Configured provider and model name. |
+| `voltix.contextTokenBudget` | `8000` | Maximum token estimate for selected workspace context; minimum `500`. |
 
 ## Safety model
 
 - **Proposals before code writes:** MCP `propose_file_change` registers pending review data; it does not write the file.
 - **Explicit acceptance:** accepted hunks or a whole file must still be submitted through **Apply Accepted** to write changes. Inline Edit separately asks you to accept and apply.
-- **Conflict checks:** before applying, TrueForge compares the current file’s SHA-256 content hash with the hash recorded for the proposal.
+- **Conflict checks:** before applying, Voltix compares the current file’s SHA-256 content hash with the hash recorded for the proposal.
 - **Workspace path checks:** workspace file tools enforce workspace containment and check symlink destinations.
 - **Command controls:** commands must match the allowlist and receive an explicit modal Run confirmation. The command tool sets a 30-second timeout.
 - **Loopback binding:** the extension MCP HTTP server listens on `127.0.0.1`, not on all network interfaces.
@@ -240,10 +240,10 @@ npm test
 |---|---|
 | `Outbound URL blocked for host 127.0.0.1` | Start TrueForge with `OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1"]'`. |
 | `fetch failed` | The TrueForge backend is not running on port `8790`; start or restart it. |
-| Port `7891` is not listening | Open the TrueForge panel once to activate the extension, then check the MCP server output in VS Code. |
+| Port `7891` is not listening | Open the Voltix panel once to activate the extension, then check the MCP server output in VS Code. |
 | Check whether the backend and MCP server are listening | Run `lsof -nP -iTCP:8790 -iTCP:7891 -sTCP:LISTEN`. |
 | Agent replies in text but no diff appears | Check that the `vscode-workspace` connector is **Connected** and that the selected model supports tool calling. |
-| `TrueForge requires an open workspace` | Open a folder in the Extension Development Host. |
+| `Voltix requires an open workspace` | Open a folder in the Extension Development Host. |
 
 ## Roadmap
 

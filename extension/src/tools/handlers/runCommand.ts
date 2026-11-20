@@ -26,7 +26,7 @@ export async function runCommand(command: string, cwd: string): Promise<CommandR
     throw new Error('Command not in allowed list');
   }
   const choice = await vscode.window.showWarningMessage(
-    `TrueForge wants to run:\n${command}\n\nWorking directory: ${cwd}`,
+    `Voltix wants to run:\n${command}\n\nWorking directory: ${cwd}`,
     { modal: true },
     'Run',
     'Cancel'

@@ -59,7 +59,7 @@ export class AgentMode {
       this.client = undefined;
       this.sessionId = undefined;
       const next = chain[index + 1];
-      const notice = `TrueForge: model "${model}" failed (${lastError}). Switching automatically to "${next}".`;
+      const notice = `Voltix: model "${model}" failed (${lastError}). Switching automatically to "${next}".`;
       getLogger().appendLine(notice);
       void vscode.window.showWarningMessage(notice);
       emit({ type: 'text_delta', content: `⚠ ${notice}\n\n` });

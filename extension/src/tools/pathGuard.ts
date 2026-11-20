@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 
 export function getWorkspaceRoot(): string {
   const folder = require('vscode').workspace.workspaceFolders?.[0];
-  if (!folder) throw new Error('TrueForge requires an open workspace');
+  if (!folder) throw new Error('Voltix requires an open workspace');
   return fs.realpathSync(folder.uri.fsPath);
 }
 

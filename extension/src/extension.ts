@@ -3,7 +3,7 @@ import { getLogger } from './utils/logger';
 import { AgentPanel } from './ui/agentPanel';
 import { AgentMode } from './commands/agentMode';
 import { runInlineEdit } from './commands/inlineEdit';
-import { TrueForgeDiffProvider } from './review/diffProvider';
+import { VoltixDiffProvider } from './review/diffProvider';
 import { PendingChanges } from './review/pendingChanges';
 import { applyAndRecord, undoLastApply, canUndo } from './review/undoStack';
 import { captureOriginalFile } from './review/conflictDetector';
@@ -14,10 +14,10 @@ let mcpServer: import('node:http').Server | undefined;
 
 export async function activate(context: vscode.ExtensionContext) {
   const logger = getLogger();
-  logger.appendLine('TrueForge activated');
-  const diffProvider = new TrueForgeDiffProvider();
+  logger.appendLine('Voltix activated');
+  const diffProvider = new VoltixDiffProvider();
   context.subscriptions.push(
-    vscode.workspace.registerTextDocumentContentProvider('trueforge', diffProvider)
+    vscode.workspace.registerTextDocumentContentProvider('voltix', diffProvider)
   );
 
   let panel: AgentPanel | undefined;
@@ -64,14 +64,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const undo = () => {
     if (!canUndo()) {
-      void vscode.window.showInformationMessage('TrueForge: nothing to undo.');
+      void vscode.window.showInformationMessage('Voltix: nothing to undo.');
       return;
     }
     const { restored, skipped } = undoLastApply();
     const parts = [];
     if (restored.length) parts.push(`restored ${restored.join(', ')}`);
     if (skipped.length) parts.push(`left ${skipped.join(', ')} alone because it was edited after the apply`);
-    void vscode.window.showInformationMessage(`TrueForge undo: ${parts.join('; ') || 'no files changed'}.`);
+    void vscode.window.showInformationMessage(`Voltix undo: ${parts.join('; ') || 'no files changed'}.`);
   };
 
   const applyWithUndo = () => {
@@ -79,26 +79,26 @@ export async function activate(context: vscode.ExtensionContext) {
     panel?.post({ type: 'apply_result', ...result });
     if (result.applied.length) {
       void vscode.window.showInformationMessage(
-        `TrueForge applied ${result.applied.length} file(s): ${result.applied.join(', ')}`,
+        `Voltix applied ${result.applied.length} file(s): ${result.applied.join(', ')}`,
         'Undo'
       ).then(choice => { if (choice === 'Undo') undo(); });
     }
   };
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('trueforge.openPanel', openPanel),
-    vscode.commands.registerCommand('trueforge.undoLastApply', undo),
-    vscode.commands.registerCommand('trueforge.inlineEdit', () => runInlineEdit(diffProvider)),
-    vscode.commands.registerCommand('trueforge.applyAccepted', applyWithUndo),
-    vscode.commands.registerCommand('trueforge.acceptInlineEdit', () => {
+    vscode.commands.registerCommand('voltix.openPanel', openPanel),
+    vscode.commands.registerCommand('voltix.undoLastApply', undo),
+    vscode.commands.registerCommand('voltix.inlineEdit', () => runInlineEdit(diffProvider)),
+    vscode.commands.registerCommand('voltix.applyAccepted', applyWithUndo),
+    vscode.commands.registerCommand('voltix.acceptInlineEdit', () => {
       const active = PendingChanges.getAll().at(-1);
       if (active) PendingChanges.acceptFile(active.id);
     }),
-    vscode.commands.registerCommand('trueforge.rejectInlineEdit', () => {
+    vscode.commands.registerCommand('voltix.rejectInlineEdit', () => {
       const active = PendingChanges.getAll().at(-1);
       if (active) PendingChanges.rejectFile(active.id);
     }),
-    vscode.commands.registerCommand('trueforge.discardAll', () => PendingChanges.clear())
+    vscode.commands.registerCommand('voltix.discardAll', () => PendingChanges.clear())
   );
 
   try {

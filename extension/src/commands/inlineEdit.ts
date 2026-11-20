@@ -4,24 +4,24 @@ import { getModelChain } from '../config/settings';
 import { guardWorkspacePath } from '../tools/pathGuard';
 import { PendingChanges } from '../review/pendingChanges';
 import { applyAndRecord } from '../review/undoStack';
-import { TrueForgeDiffProvider } from '../review/diffProvider';
+import { VoltixDiffProvider } from '../review/diffProvider';
 import { getLogger } from '../utils/logger';
 
 /**
  * Inline Edit: the user selects code, presses the keybinding and types an instruction.
- * The TrueForge agent proposes the change through the vscode-workspace MCP tools
+ * The Voltix agent proposes the change through the vscode-workspace MCP tools
  * (edit_file / propose_file_change), so nothing is written to disk until the user accepts.
- * If the configured model fails, the next model in trueforge.fallbackModels is used automatically.
+ * If the configured model fails, the next model in voltix.fallbackModels is used automatically.
  */
-export async function runInlineEdit(provider: TrueForgeDiffProvider) {
+export async function runInlineEdit(provider: VoltixDiffProvider) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
-    vscode.window.showWarningMessage('TrueForge: open a file and select some code first.');
+    vscode.window.showWarningMessage('Voltix: open a file and select some code first.');
     return;
   }
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspaceRoot) {
-    vscode.window.showWarningMessage('TrueForge: open a folder (workspace) first.');
+    vscode.window.showWarningMessage('Voltix: open a folder (workspace) first.');
     return;
   }
   const guarded = guardWorkspacePath(editor.document.uri.fsPath, workspaceRoot);
@@ -30,7 +30,7 @@ export async function runInlineEdit(provider: TrueForgeDiffProvider) {
     return;
   }
 
-  const instruction = await vscode.window.showInputBox({ prompt: 'TrueForge inline edit: describe the change', ignoreFocusOut: true });
+  const instruction = await vscode.window.showInputBox({ prompt: 'Voltix inline edit: describe the change', ignoreFocusOut: true });
   if (!instruction) return;
   if (editor.document.isDirty) await editor.document.save();
 
@@ -56,7 +56,7 @@ export async function runInlineEdit(provider: TrueForgeDiffProvider) {
   let cancelled = false;
 
   await vscode.window.withProgress(
-    { location: vscode.ProgressLocation.Notification, title: `TrueForge: inline edit for ${rel}`, cancellable: true },
+    { location: vscode.ProgressLocation.Notification, title: `Voltix: inline edit for ${rel}`, cancellable: true },
     async (progress, token) => {
       for (let index = 0; index < models.length && !change && !cancelled; index++) {
         const model = models[index];
@@ -94,7 +94,7 @@ export async function runInlineEdit(provider: TrueForgeDiffProvider) {
           getLogger().appendLine(`Inline edit with ${model} failed: ${message}`);
           if (index < models.length - 1 && !cancelled) {
             void vscode.window.showWarningMessage(
-              `TrueForge: model "${model}" failed (${message}). Switching automatically to "${models[index + 1]}".`
+              `Voltix: model "${model}" failed (${message}). Switching automatically to "${models[index + 1]}".`
             );
           }
         }
@@ -104,27 +104,27 @@ export async function runInlineEdit(provider: TrueForgeDiffProvider) {
 
   if (cancelled) {
     if (change) PendingChanges.remove(change.id);
-    vscode.window.showInformationMessage('TrueForge: inline edit cancelled. No files were changed.');
+    vscode.window.showInformationMessage('Voltix: inline edit cancelled. No files were changed.');
     return;
   }
   if (!change) {
     vscode.window.showErrorMessage(
-      `TrueForge could not complete the inline edit. ${errors.join(' | ')}. No files were changed.`
+      `Voltix could not complete the inline edit. ${errors.join(' | ')}. No files were changed.`
     );
     return;
   }
   if (change.hunks.length === 0) {
     PendingChanges.remove(change.id);
-    vscode.window.showInformationMessage('TrueForge: the agent proposed no actual changes.');
+    vscode.window.showInformationMessage('Voltix: the agent proposed no actual changes.');
     return;
   }
 
   // Original (left) vs proposed (right). The real file is untouched until the user accepts.
   const right = provider.set(change.id, change.proposedContent);
-  await vscode.commands.executeCommand('vscode.diff', editor.document.uri, right, `TrueForge Inline Edit: ${rel} (${change.hunks.length} hunk${change.hunks.length === 1 ? '' : 's'})`);
+  await vscode.commands.executeCommand('vscode.diff', editor.document.uri, right, `Voltix Inline Edit: ${rel} (${change.hunks.length} hunk${change.hunks.length === 1 ? '' : 's'})`);
 
   const choice = await vscode.window.showInformationMessage(
-    `TrueForge: ${change.reason || instruction}`,
+    `Voltix: ${change.reason || instruction}`,
     'Accept & Apply',
     'Review Hunks',
     'Reject'
@@ -134,18 +134,18 @@ export async function runInlineEdit(provider: TrueForgeDiffProvider) {
     PendingChanges.acceptFile(change.id);
     const result = applyAndRecord([change]);
     if (result.applied.length) {
-      const undo = await vscode.window.showInformationMessage(`TrueForge: applied inline edit to ${rel}.`, 'Undo');
-      if (undo === 'Undo') await vscode.commands.executeCommand('trueforge.undoLastApply');
+      const undo = await vscode.window.showInformationMessage(`Voltix: applied inline edit to ${rel}.`, 'Undo');
+      if (undo === 'Undo') await vscode.commands.executeCommand('voltix.undoLastApply');
     } else if (result.conflicts.length) {
-      vscode.window.showErrorMessage(`TrueForge: ${rel} changed since the edit was proposed. Nothing was written.`);
+      vscode.window.showErrorMessage(`Voltix: ${rel} changed since the edit was proposed. Nothing was written.`);
     } else {
-      vscode.window.showErrorMessage(`TrueForge: could not apply the edit to ${rel}. Nothing was written.`);
+      vscode.window.showErrorMessage(`Voltix: could not apply the edit to ${rel}. Nothing was written.`);
     }
   } else if (choice === 'Review Hunks') {
-    // Per-hunk accept/reject happens in the TrueForge panel, then Apply Accepted.
-    await vscode.commands.executeCommand('trueforge.openPanel');
+    // Per-hunk accept/reject happens in the Voltix panel, then Apply Accepted.
+    await vscode.commands.executeCommand('voltix.openPanel');
   } else {
     PendingChanges.remove(change.id);
-    vscode.window.showInformationMessage('TrueForge: inline edit rejected. No files were modified.');
+    vscode.window.showInformationMessage('Voltix: inline edit rejected. No files were modified.');
   }
 }
