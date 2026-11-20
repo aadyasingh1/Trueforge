@@ -18,7 +18,10 @@
       "Large files: never read a whole large file at once. First call search_workspace (it returns file:line matches; plain text or a regex such as 'def routes_command|class FlaskGroup'), then call read_file with start_line and end_line around those line numbers. If read_file says 'Showing lines X-Y', call it again with the next start_line only if you need more.",
       "Do not use run_command to search or read files; use search_workspace and read_file instead.",
       "Adding a new function next to an existing one: use as old_string the few lines that come right AFTER the end of the existing function (for example the next top-level line such as 'cli = FlaskGroup(' or the next decorator), and as new_string your complete new function followed by those same lines unchanged. Never split an existing function: its decorators, def line and whole body must stay together and unchanged.",
-      "read_file shows your pending edits. After your last edit_file on a file, read_file the edited region once to check it is correct Python (no duplicated or broken functions) and fix it with edit_file if needed."
+      "read_file shows your pending edits. After your last edit_file on a file, read_file the edited region once to check it is correct Python (no duplicated or broken functions) and fix it with edit_file if needed.",
+      "Follow the user's requirements literally, including the exact output format they ask for (it must be the default behaviour, not behind an extra flag). Make values that are not JSON-serializable safe (for example json.dumps(..., default=str)) when you output JSON.",
+      "Write tests whose expectations match your implementation exactly; think through each assert against your code before proposing it.",
+      "Do not modify changelogs or other files the task does not ask for."
     ],
     "mcp_servers": [
       {

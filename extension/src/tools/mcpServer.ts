@@ -87,6 +87,13 @@ function buildServer(hooks: McpHooks): McpServer {
     proposedContent: z.string(),
     reason: z.string(),
   }, async ({ path: file, proposedContent, reason }: { path: string; proposedContent: string; reason: string }) => {
+    const guarded = guardWorkspacePath(file);
+    if (!guarded.allowed) return { isError: true, content: [{ type: 'text', text: guarded.error }] };
+    // Whole-file rewrites of existing files silently drop content the model never read
+    // (e.g. a 1600-line changelog cut to 20 lines), so existing files must go through edit_file.
+    if (fs.existsSync(guarded.absPath) || hooks.getPendingContent?.(guarded.absPath) !== undefined) {
+      return { isError: true, content: [{ type: 'text', text: 'This file already exists. Do not rewrite it: use edit_file with an exact old_string and new_string to change only the lines you need.' }] };
+    }
     hooks.onProposedChange?.({ path: file, proposedContent, reason });
     return { content: [{ type: 'text', text: 'Change registered for review (not written to disk yet).' }] };
   });
