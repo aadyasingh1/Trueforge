@@ -17,6 +17,8 @@ export interface McpHooks {
   onProposedChange?: (input: { path: string; proposedContent: string; reason: string }) => void;
   /** Returns the content of a still-pending proposal for this file, so several edit_file calls stack up. */
   getPendingContent?: (absPath: string) => string | undefined;
+  /** Runs a test command against the pending changes in a sandbox copy of the workspace. */
+  verify?: (command: string) => Promise<string>;
 }
 
 type ProposedChangeHandler = McpHooks['onProposedChange'];
@@ -96,6 +98,17 @@ function buildServer(hooks: McpHooks): McpServer {
     }
     hooks.onProposedChange?.({ path: file, proposedContent, reason });
     return { content: [{ type: 'text', text: 'Change registered for review (not written to disk yet).' }] };
+  });
+
+  (server as any).tool('verify_changes', {
+    command: z.string(),
+  }, async ({ command }: { command: string }) => {
+    if (!hooks.verify) return { isError: true, content: [{ type: 'text', text: 'Verification is not available.' }] };
+    try {
+      return { content: [{ type: 'text', text: await hooks.verify(command) }] };
+    } catch (error) {
+      return { isError: true, content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }] };
+    }
   });
 
   (server as any).tool('run_command', { command: z.string(), cwd: z.string().optional() }, async ({ command, cwd }: { command: string; cwd?: string }) => {

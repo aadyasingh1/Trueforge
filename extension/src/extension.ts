@@ -9,6 +9,8 @@ import { applyAndRecord, undoLastApply, canUndo } from './review/undoStack';
 import { captureOriginalFile } from './review/conflictDetector';
 import { startMcpServer } from './tools/mcpServer';
 import { guardWorkspacePath } from './tools/pathGuard';
+import { formatForAgent, resetVerification, verifyPending } from './verify/verifier';
+import { passportToMarkdown } from './review/passport';
 
 let mcpServer: import('node:http').Server | undefined;
 
@@ -50,6 +52,15 @@ export async function activate(context: vscode.ExtensionContext) {
         } else if (message.type === 'discard_all') {
           for (const change of PendingChanges.getAll()) newPanel.post({ type: 'change_removed', changeId: change.id });
           PendingChanges.clear();
+          resetVerification();
+          if (agentMode) agentMode.lastPassport = null;
+          newPanel.post({ type: 'passport', passport: null });
+        } else if (message.type === 'copy_passport') {
+          const passport = agentMode?.lastPassport;
+          if (passport) {
+            await vscode.env.clipboard.writeText(passportToMarkdown(passport));
+            void vscode.window.showInformationMessage('Voltix: Change Passport copied as Markdown (paste it into your PR or commit message).');
+          }
         }
       });
       newPanel.onDidDispose(() => {
@@ -105,6 +116,15 @@ export async function activate(context: vscode.ExtensionContext) {
     const findPending = (absPath: string) => PendingChanges.getAll().find(change => change.absPath === absPath);
     mcpServer = await startMcpServer(7891, {
       getPendingContent: absPath => findPending(absPath)?.proposedContent,
+      verify: async command => {
+        panel?.post({ type: 'verification', phase: 'running', command, summary: 'Agent is running the tests against its pending changes in a sandbox…', round: 0, maxRounds: 0, source: 'agent' });
+        const record = await verifyPending(command, 'agent');
+        panel?.post({
+          type: 'verification', phase: record.passed ? 'passed' : 'failed', command: record.command, summary: record.summary,
+          round: 0, maxRounds: 0, source: 'agent', output: record.output.slice(-4000), durationMs: record.durationMs,
+        });
+        return formatForAgent(record);
+      },
       onProposedChange: input => {
         const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!root) return;

@@ -37,87 +37,135 @@ export class AgentPanel {
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
   <style>
+    /* Native VS Code look: every colour and font comes from the user's active theme. */
     *{box-sizing:border-box}
-    :root{color-scheme:dark}
-    body{margin:0;padding:18px;font:13px Consolas,"JetBrains Mono",monospace;color:#5AA5CD;background:#14334A}
+    :root{--tf-accent:#7c5cff;--tf-accent2:#2bb3ff;--tf-radius:8px;--tf-border:var(--vscode-widget-border,var(--vscode-panel-border,rgba(128,128,128,.35)));--tf-card:var(--vscode-sideBar-background,var(--vscode-editor-background));--tf-muted:var(--vscode-descriptionForeground)}
+    body{margin:0;padding:20px 22px 32px;font-family:var(--vscode-font-family);font-size:var(--vscode-font-size,13px);line-height:1.5;color:var(--vscode-foreground);background:var(--vscode-editor-background)}
     h1,h2,h3,p{margin-top:0}
-    h1,h2,h3,.brand-label,button,.panel-section>summary{font-family:"Times New Roman",serif}
-    h1{font-size:24px;margin-bottom:14px;color:#27E4EC;letter-spacing:.02em}
-    h2{font-size:17px;color:#27E4EC}
-    h3{font-size:16px;color:#27E4EC}
-    button{font-size:13px;color:#14334A;background:#18A3B7;border:1px solid #27E4EC;border-radius:2px;padding:7px 11px;cursor:pointer}
-    button:hover{background:#27E4EC}
-    button:disabled{opacity:.55;cursor:default}
-    button.secondary{color:#27E4EC;background:#1E536E;border-color:#5AA5CD}
-    button.secondary:hover{background:#1E536E;border-color:#27E4EC}
-    button.danger{color:#27E4EC;background:transparent;border:1px solid #6F71A1}
-    button.danger:hover{background:#6F71A1;color:#14334A}
-    button:focus-visible,textarea:focus-visible{outline:2px solid #27E4EC;outline-offset:2px}
-    textarea{display:block;width:100%;min-height:78px;resize:vertical;margin:0 0 8px;padding:10px;color:#27E4EC;background:#14334A;border:1px solid #1E536E;font:13px Consolas,"JetBrains Mono",monospace}
-    textarea::placeholder{color:#5AA5CD}
-    label{display:block;margin-bottom:6px;color:#27E4EC;font-family:"Times New Roman",serif;font-weight:700}
-    input,textarea,select{caret-color:#27E4EC}
-    code,pre,.diff-row,.unified-row,.activity-preview,.receipt-item pre{font-family:Consolas,"JetBrains Mono",monospace}
-    .toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-    #status{min-height:20px;margin:8px 0;color:#5AA5CD}
-    .error-banner,.result-banner{margin:8px 0;padding:10px;border:1px solid #1E536E;border-left:3px solid #27E4EC;background:#14334A}
-    .error-banner{border-left-color:#6F71A1;color:#27E4EC}
-    .result-banner.success{border-left-color:#18A3B7}
-    .result-banner.failure{border-left-color:#6F71A1}
+    h1{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:700;margin-bottom:16px;letter-spacing:-.01em}
+    h1::before{content:"";width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--tf-accent),var(--tf-accent2));box-shadow:0 2px 8px rgba(124,92,255,.45)}
+    h1::after{content:"Coding agent · runs on TrueForge";font-size:11px;font-weight:500;letter-spacing:.02em;padding:2px 8px;border-radius:999px;color:var(--tf-muted);border:1px solid var(--tf-border)}
+    h2{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--tf-muted)}
+    h3{font-size:14px;font-weight:600}
+    button{font-family:var(--vscode-font-family);font-size:12px;font-weight:500;color:var(--vscode-button-foreground);background:var(--vscode-button-background);border:1px solid transparent;border-radius:6px;padding:6px 14px;cursor:pointer;transition:background .12s,opacity .12s}
+    button:hover{background:var(--vscode-button-hoverBackground)}
+    button:disabled{opacity:.45;cursor:default}
+    button.secondary{color:var(--vscode-button-secondaryForeground);background:var(--vscode-button-secondaryBackground)}
+    button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}
+    button.danger{color:var(--vscode-errorForeground);background:transparent;border-color:var(--tf-border)}
+    button.danger:hover:not(:disabled){background:var(--vscode-inputValidation-errorBackground,rgba(255,80,80,.12))}
+    #submit{background:linear-gradient(135deg,var(--tf-accent),var(--tf-accent2));color:#fff;padding:6px 18px}
+    #submit:hover:not(:disabled){filter:brightness(1.1)}
+    button:focus-visible,textarea:focus-visible{outline:1px solid var(--vscode-focusBorder);outline-offset:2px}
+    textarea{display:block;width:100%;min-height:84px;resize:vertical;margin:0 0 10px;padding:10px 12px;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--tf-border));border-radius:var(--tf-radius);font-family:var(--vscode-font-family);font-size:13px}
+    textarea:focus{border-color:var(--vscode-focusBorder);outline:none}
+    textarea::placeholder{color:var(--vscode-input-placeholderForeground)}
+    label{display:block;margin-bottom:6px;font-weight:600;font-size:12px;color:var(--tf-muted)}
+    code,pre,.diff-row,.unified-row,.activity-preview,.receipt-item pre,.file-nav,.hunk-review-title{font-family:var(--vscode-editor-font-family)}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+    #status{min-height:20px;margin:8px 0;color:var(--tf-muted);font-size:12px}
+    .error-banner,.result-banner{margin:10px 0;padding:10px 12px;border:1px solid var(--tf-border);border-left:3px solid var(--vscode-testing-iconPassed,#3fb950);border-radius:var(--tf-radius);background:var(--tf-card)}
+    .error-banner{border-left-color:var(--vscode-errorForeground)}
+    .result-banner.success{border-left-color:var(--vscode-testing-iconPassed,#3fb950)}
+    .result-banner.failure{border-left-color:var(--vscode-errorForeground)}
     .banner-heading{font-weight:600;margin-bottom:4px}
     .banner-list{margin:6px 0 0;padding-left:20px}
-    #output{margin:10px 0 14px;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;border-left:2px solid #1E536E;background:#14334A}
-    .panel-section{margin:14px 0;border:1px solid #1E536E;border-radius:2px;background:#14334A}
-    .panel-section>summary{cursor:pointer;padding:10px;font-weight:600}
-    .receipt-body{padding:0 10px 10px}
-    .receipt-summary{color:#5AA5CD;margin:0 0 8px}
-    .receipt-item{border-top:1px solid #1E536E;padding:8px 0}
+    #output{margin:8px 0 16px;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px 14px;border:1px solid var(--tf-border);border-left:3px solid var(--tf-accent);border-radius:var(--tf-radius);background:var(--tf-card)}
+    .panel-section{margin:14px 0;border:1px solid var(--tf-border);border-radius:var(--tf-radius);background:var(--tf-card);overflow:hidden}
+    .panel-section>summary{cursor:pointer;padding:10px 12px;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--tf-muted)}
+    .panel-section>summary:hover{color:var(--vscode-foreground)}
+    .receipt-body{padding:0 12px 12px}
+    .receipt-summary{color:var(--tf-muted);margin:0 0 8px}
+    .receipt-item{border-top:1px solid var(--tf-border);padding:8px 0}
     .receipt-item summary{cursor:pointer;overflow-wrap:anywhere}
-    .receipt-item pre{max-height:240px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:8px;background:#14334A;border:1px solid #1E536E;font-size:12px;line-height:1.5}
-    #activity-list{margin:0;padding:0;list-style:none}
-    .activity-item{padding:8px 10px;border-top:1px solid #1E536E}
-    .activity-title{font-weight:600}
-    .activity-status,.activity-preview{color:#5AA5CD;margin:4px 0 0}
-    .activity-preview{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
-    #activity-heading{padding:10px;margin:0;font-size:15px}
-    .review-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:16px 0 8px}
-    .review-heading h2{font-size:15px;margin:0}
-    #review-counts{color:#5AA5CD}
-    .review-actions{display:flex;gap:6px}
+    .receipt-item pre{max-height:240px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 10px;background:var(--vscode-textCodeBlock-background,var(--vscode-editor-background));border:1px solid var(--tf-border);border-radius:6px;font-size:12px;line-height:1.5}
+    #activity-list{margin:0;padding:0;list-style:none;max-height:360px;overflow:auto}
+    .activity-item{position:relative;padding:9px 12px 9px 28px;border-top:1px solid var(--tf-border)}
+    .activity-item::before{content:"";position:absolute;left:12px;top:15px;width:7px;height:7px;border-radius:50%;background:var(--tf-accent)}
+    .activity-title{font-weight:600;font-family:var(--vscode-editor-font-family);color:var(--vscode-textLink-foreground)}
+    .activity-status,.activity-preview{color:var(--tf-muted);margin:3px 0 0}
+    .activity-preview{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11.5px;max-height:120px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 75%,transparent)}
+    #activity-heading{padding:10px 12px;margin:0}
+    .review-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:20px 0 10px}
+    .review-heading h2{margin:0}
+    #review-counts{color:var(--tf-muted);font-size:12px}
+    .review-actions{display:flex;gap:8px}
     .review-layout{display:grid;grid-template-columns:minmax(150px,240px) minmax(0,1fr);gap:12px;align-items:start}
-    #file-list{display:flex;flex-direction:column;gap:4px}
-    .file-nav{width:100%;text-align:left;color:#27E4EC;background:transparent;border:1px solid #1E536E;overflow-wrap:anywhere;font-family:Consolas,"JetBrains Mono",monospace}
-    .file-nav:hover,.file-nav[aria-current="true"]{background:#1E536E}
-    .file-nav[aria-current="true"]{border-color:#27E4EC;border-left-width:3px}
+    #file-list{display:flex;flex-direction:column;gap:6px}
+    .file-nav{width:100%;text-align:left;color:var(--vscode-foreground);background:var(--tf-card);border:1px solid var(--tf-border);border-radius:6px;overflow-wrap:anywhere;font-size:12px}
+    .file-nav:hover{background:var(--vscode-list-hoverBackground)}
+    .file-nav[aria-current="true"]{background:var(--vscode-list-activeSelectionBackground);color:var(--vscode-list-activeSelectionForeground,var(--vscode-foreground));border-color:var(--vscode-focusBorder);box-shadow:inset 3px 0 0 var(--tf-accent)}
     .file-nav-path,.file-nav-state{display:block}
-    .file-nav-state{margin-top:4px;color:#5AA5CD;font-size:11px}
-    #review-detail{min-width:0;min-height:160px;border:1px solid #1E536E}
-    .review-empty{padding:18px;color:#5AA5CD}
-    .review-header{position:sticky;top:0;z-index:2;padding:12px;background:#14334A;border-bottom:1px solid #1E536E}
-    .review-header h3{margin:0 0 5px;overflow-wrap:anywhere}
-    .review-reason{margin:0 0 8px;color:#5AA5CD;white-space:pre-wrap;overflow-wrap:anywhere}
-    .review-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#5AA5CD;margin-bottom:8px}
-    .state-badge{display:inline-block;padding:2px 6px;border-radius:8px;background:#1E536E;color:#27E4EC}
-    .decision-note{margin:8px 0 0;color:#5AA5CD}
+    .file-nav-state{margin-top:4px;color:var(--tf-muted);font-size:11px}
+    #review-detail{min-width:0;min-height:160px;border:1px solid var(--tf-border);border-radius:var(--tf-radius);overflow:hidden;background:var(--vscode-editor-background)}
+    .review-empty{padding:18px;color:var(--tf-muted)}
+    .review-header{position:sticky;top:0;z-index:2;padding:12px 14px;background:var(--tf-card);border-bottom:1px solid var(--tf-border)}
+    .review-header h3{margin:0 0 5px;overflow-wrap:anywhere;font-family:var(--vscode-editor-font-family)}
+    .review-reason{margin:0 0 8px;color:var(--tf-muted);white-space:pre-wrap;overflow-wrap:anywhere}
+    .review-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:var(--tf-muted);margin-bottom:8px}
+    .state-badge{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+    .decision-note{margin:8px 0 0;color:var(--tf-muted)}
     .diff-mode{margin-left:auto}
     .diff-labels,.diff-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-    .diff-labels{background:#14334A;border-bottom:1px solid #1E536E;font-weight:600;color:#27E4EC}
-    .diff-labels span{padding:7px 8px}
-    .diff-labels span+span,.diff-cell+.diff-cell{border-left:1px solid #1E536E}
-    .diff-row,.unified-row{min-width:0;font-size:12px;line-height:1.55}
-    .hunk-review-control{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 8px;background:#14334A;border-top:1px solid #1E536E}
-    .hunk-review-title{flex:1 1 220px;color:#5AA5CD;font-family:Consolas,"JetBrains Mono",monospace}
-    .hunk-review-state{color:#27E4EC}
+    .diff-labels{background:var(--tf-card);border-bottom:1px solid var(--tf-border);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--tf-muted)}
+    .diff-labels span{padding:6px 8px}
+    .diff-labels span+span,.diff-cell+.diff-cell{border-left:1px solid var(--tf-border)}
+    .diff-row,.unified-row{min-width:0;font-size:12px;line-height:1.6}
+    .hunk-review-control{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 10px;background:var(--tf-card);border-top:1px solid var(--tf-border)}
+    .hunk-review-title{flex:1 1 220px;color:var(--tf-muted);font-size:12px}
+    .hunk-review-state{color:var(--vscode-textLink-foreground)}
     .diff-cell{display:flex;min-width:0;white-space:pre}
-    .line-number{flex:0 0 4em;padding:0 6px;text-align:right;color:#6F71A1;user-select:none}
+    .line-number{flex:0 0 4em;padding:0 6px;text-align:right;color:var(--vscode-editorLineNumber-foreground);user-select:none}
     .line-content{min-width:0;overflow-x:auto;padding:0 8px}
-    .diff-add .diff-cell,.unified-row.diff-add{background:#1E536E;border-left:2px solid #27E4EC}
-    .diff-remove .diff-cell,.unified-row.diff-remove{background:#6F71A1;color:#14334A;border-left:2px solid #6F71A1}
+    .diff-add .diff-cell,.unified-row.diff-add{background:var(--vscode-diffEditor-insertedLineBackground,rgba(46,160,67,.18));box-shadow:inset 2px 0 0 var(--vscode-testing-iconPassed,#3fb950)}
+    .diff-remove .diff-cell,.unified-row.diff-remove{background:var(--vscode-diffEditor-removedLineBackground,rgba(248,81,73,.18));box-shadow:inset 2px 0 0 var(--vscode-errorForeground,#f85149)}
     .unified-row{display:flex;white-space:pre}
-    .unified-prefix{flex:0 0 1.5em;text-align:center;color:#27E4EC}
-    .unified-number{flex:0 0 5em;color:#6F71A1;text-align:right;padding-right:6px}
+    .unified-prefix{flex:0 0 1.5em;text-align:center;color:var(--tf-muted)}
+    .unified-number{flex:0 0 5em;color:var(--vscode-editorLineNumber-foreground);text-align:right;padding-right:6px}
     .unified-content{min-width:0;overflow-x:auto;padding:0 8px}
-    .diff-row+.diff-row,.unified-row+.unified-row{border-top:1px solid #1E536E}
+    .diff-row+.diff-row,.unified-row+.unified-row{border-top:1px solid transparent}
+    .meta-row{display:flex;align-items:center;gap:8px;min-height:22px;margin:4px 0 2px}
+    .model-badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:2px 10px;border-radius:999px;border:1px solid var(--tf-border);color:var(--tf-muted);font-family:var(--vscode-editor-font-family)}
+    .model-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--vscode-testing-iconPassed,#3fb950)}
+    .model-badge.fallback{color:var(--vscode-editorWarning-foreground,#cca700);border-color:var(--vscode-editorWarning-foreground,#cca700)}
+    .model-badge.fallback::before{background:var(--vscode-editorWarning-foreground,#cca700)}
+    .card{margin:12px 0;border:1px solid var(--tf-border);border-radius:var(--tf-radius);background:var(--tf-card);overflow:hidden}
+    .card-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--tf-border)}
+    .card-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--tf-muted);margin-right:auto}
+    .pill{display:inline-flex;align-items:center;gap:5px;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid var(--tf-border);white-space:nowrap}
+    .pill.ok{color:var(--vscode-testing-iconPassed,#3fb950);border-color:currentColor}
+    .pill.bad{color:var(--vscode-errorForeground,#f85149);border-color:currentColor}
+    .pill.warn{color:var(--vscode-editorWarning-foreground,#cca700);border-color:currentColor}
+    .pill.info{color:var(--vscode-textLink-foreground);border-color:currentColor}
+    .pill.muted{color:var(--tf-muted)}
+    .verify-card{border-left:3px solid var(--tf-border)}
+    .verify-card.passed{border-left-color:var(--vscode-testing-iconPassed,#3fb950)}
+    .verify-card.failed{border-left-color:var(--vscode-errorForeground,#f85149)}
+    .verify-card.running,.verify-card.fixing{border-left-color:var(--tf-accent)}
+    .verify-steps{list-style:none;margin:0;padding:6px 12px 10px}
+    .verify-step{display:grid;grid-template-columns:22px 1fr;gap:6px;padding:5px 0;align-items:start}
+    .verify-step+.verify-step{border-top:1px dashed var(--tf-border)}
+    .step-icon{font-weight:700;text-align:center}
+    .step-icon.ok{color:var(--vscode-testing-iconPassed,#3fb950)}
+    .step-icon.bad{color:var(--vscode-errorForeground,#f85149)}
+    .step-icon.run{color:var(--tf-accent);animation:tfspin 1s linear infinite;display:inline-block}
+    .step-main{min-width:0}
+    .step-text{font-weight:500}
+    .step-cmd{display:block;margin-top:2px;font-family:var(--vscode-editor-font-family);font-size:11.5px;color:var(--tf-muted);overflow-wrap:anywhere}
+    .step-output{margin:6px 0 0;max-height:160px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 10px;font-size:11.5px;background:var(--vscode-textCodeBlock-background,var(--vscode-editor-background));border:1px solid var(--tf-border);border-radius:6px}
+    @keyframes tfspin{to{transform:rotate(360deg)}}
+    .passport-stats{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px 0}
+    .passport-table{width:100%;border-collapse:collapse;margin:8px 0 4px;font-size:12px}
+    .passport-table th{text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--tf-muted);padding:6px 12px;border-bottom:1px solid var(--tf-border)}
+    .passport-table td{padding:7px 12px;border-bottom:1px solid var(--tf-border);vertical-align:top}
+    .passport-table tr:last-child td{border-bottom:none}
+    .passport-path{font-family:var(--vscode-editor-font-family);overflow-wrap:anywhere}
+    .passport-notes{color:var(--tf-muted)}
+    .passport-flag{display:block;margin-top:3px}
+    .passport-flag.high{color:var(--vscode-errorForeground,#f85149)}
+    .passport-flag.medium{color:var(--vscode-editorWarning-foreground,#cca700)}
+    .num-add{color:var(--vscode-testing-iconPassed,#3fb950)}
+    .num-del{color:var(--vscode-errorForeground,#f85149)}
     @media(max-width:640px){.review-layout{grid-template-columns:1fr}.review-heading{align-items:flex-start;flex-wrap:wrap}}
   </style>
 </head>
@@ -133,6 +181,7 @@ export class AgentPanel {
       <button id="discard" class="danger" type="button">Discard All</button>
     </div>
   </form>
+  <div class="meta-row"><span id="model-badge" class="model-badge" hidden></span></div>
   <div id="status" role="status" aria-live="polite"></div>
   <div id="error-area" aria-live="assertive"></div>
   <div id="result-area" aria-live="polite"></div>
@@ -157,6 +206,8 @@ export class AgentPanel {
         <button id="reject-all" class="danger" type="button" disabled>Reject All</button>
       </div>
     </div>
+    <div id="verify-area"></div>
+    <div id="passport-area"></div>
     <div class="review-layout">
       <nav id="file-list" aria-label="Proposed files"></nav>
       <section id="review-detail" aria-live="polite"><div class="review-empty">Proposed changes will appear here.</div></section>
@@ -193,6 +244,115 @@ export class AgentPanel {
     const acceptAllButton = document.getElementById('accept-all');
     const rejectAllButton = document.getElementById('reject-all');
     const discardButton = document.getElementById('discard');
+    const modelBadge = document.getElementById('model-badge');
+    const verifyArea = document.getElementById('verify-area');
+    const passportArea = document.getElementById('passport-area');
+    state.verifyEvents = [];
+    state.passport = null;
+
+    function renderVerification() {
+      clear(verifyArea);
+      const events = state.verifyEvents;
+      if (!events.length) return;
+      const last = events[events.length - 1];
+      const card = makeElement('section', 'card verify-card ' + last.phase);
+      const head = makeElement('div', 'card-head');
+      head.appendChild(makeElement('span', 'card-title', 'Verify before apply'));
+      const pillClass = last.phase === 'passed' ? 'ok' : last.phase === 'failed' ? 'bad' : last.phase === 'skipped' ? 'muted' : 'info';
+      const pillText = last.phase === 'passed' ? '✓ Verified in sandbox' : last.phase === 'failed' ? '✗ Tests failing' :
+        last.phase === 'skipped' ? 'Not verified' : last.phase === 'fixing' ? 'Agent fixing' : 'Running tests';
+      head.appendChild(makeElement('span', 'pill ' + pillClass, pillText));
+      const fixes = events.filter(item => item.phase === 'fixing').length;
+      if (fixes) head.appendChild(makeElement('span', 'pill muted', fixes + ' automatic fix round' + (fixes > 1 ? 's' : '')));
+      card.appendChild(head);
+      const steps = makeElement('ol', 'verify-steps');
+      events.forEach((item, index) => {
+        if (item.phase === 'running' && index < events.length - 1) return;
+        const step = makeElement('li', 'verify-step');
+        const icon = item.phase === 'passed' ? ['ok', '✓'] : item.phase === 'failed' ? ['bad', '✗'] :
+          item.phase === 'fixing' ? ['run', '↻'] : item.phase === 'running' ? ['run', '◌'] : ['', '–'];
+        step.appendChild(makeElement('span', 'step-icon ' + icon[0], icon[1]));
+        const main = makeElement('div', 'step-main');
+        const who = item.source === 'agent' ? 'Agent ran tests' : item.phase === 'fixing' ? 'Voltix sent failures back' : 'Voltix ran tests';
+        main.appendChild(makeElement('span', 'step-text', who + ': ' + (item.summary || '')));
+        if (item.command && item.phase !== 'fixing') {
+          main.appendChild(makeElement('span', 'step-cmd', '$ ' + item.command + (item.durationMs ? '  ·  ' + (item.durationMs / 1000).toFixed(1) + 's' : '')));
+        }
+        if (item.phase === 'failed' && item.output && index === events.length - 1) {
+          const details = makeElement('details');
+          details.appendChild(makeElement('summary', 'step-cmd', 'Show test output'));
+          details.appendChild(makeElement('pre', 'step-output', item.output));
+          main.appendChild(details);
+        }
+        step.appendChild(main);
+        steps.appendChild(step);
+      });
+      card.appendChild(steps);
+      verifyArea.appendChild(card);
+    }
+
+    function riskPill(risk) {
+      const cls = risk === 'high' ? 'bad' : risk === 'medium' ? 'warn' : 'ok';
+      return makeElement('span', 'pill ' + cls, (risk || 'low').toUpperCase() + ' RISK');
+    }
+
+    function renderPassport() {
+      clear(passportArea);
+      const passport = state.passport;
+      if (!passport || !passport.files || !passport.files.length) return;
+      const card = makeElement('section', 'card');
+      const head = makeElement('div', 'card-head');
+      head.appendChild(makeElement('span', 'card-title', 'Change passport'));
+      head.appendChild(riskPill(passport.risk));
+      const copy = makeElement('button', 'secondary', 'Copy as Markdown');
+      copy.type = 'button';
+      copy.dataset.action = 'copy-passport';
+      head.appendChild(copy);
+      card.appendChild(head);
+      const stats = makeElement('div', 'passport-stats');
+      const totals = passport.totals || {};
+      stats.appendChild(makeElement('span', 'pill muted', totals.files + ' file' + (totals.files === 1 ? '' : 's')));
+      const delta = makeElement('span', 'pill muted');
+      delta.appendChild(makeElement('span', 'num-add', '+' + totals.added));
+      delta.appendChild(document.createTextNode(' / '));
+      delta.appendChild(makeElement('span', 'num-del', '−' + totals.removed));
+      stats.appendChild(delta);
+      stats.appendChild(makeElement('span', 'pill muted', 'Blast radius: ' + totals.dependents + ' dependent file' + (totals.dependents === 1 ? '' : 's')));
+      stats.appendChild(makeElement('span', 'pill ' + (passport.testsTouched ? 'ok' : 'warn'), passport.testsTouched ? 'Tests included' : 'No tests changed'));
+      if (passport.verification) {
+        stats.appendChild(makeElement('span', 'pill ' + (passport.verification.passed ? 'ok' : 'bad'),
+          passport.verification.passed ? '✓ ' + passport.verification.summary : '✗ ' + passport.verification.summary));
+      }
+      card.appendChild(stats);
+      const table = makeElement('table', 'passport-table');
+      const headRow = makeElement('tr');
+      ['File', 'Change', 'Risk', 'Notes'].forEach(label => headRow.appendChild(makeElement('th', '', label)));
+      table.appendChild(headRow);
+      passport.files.forEach(file => {
+        const row = makeElement('tr');
+        row.appendChild(makeElement('td', 'passport-path', file.path));
+        const change = makeElement('td');
+        change.appendChild(makeElement('span', 'num-add', '+' + file.added));
+        change.appendChild(document.createTextNode(' '));
+        change.appendChild(makeElement('span', 'num-del', '−' + file.removed));
+        row.appendChild(change);
+        const riskCell = makeElement('td');
+        riskCell.appendChild(riskPill(file.risk));
+        row.appendChild(riskCell);
+        const notes = makeElement('td', 'passport-notes');
+        const parts = [];
+        if (file.isNew) parts.push('new file');
+        if (file.isTest) parts.push('test');
+        if (file.symbols && file.symbols.length) parts.push('defines ' + file.symbols.join(', '));
+        if (file.dependents && file.dependents.length) parts.push('imported by ' + file.dependents.length + ' file' + (file.dependents.length === 1 ? '' : 's'));
+        notes.appendChild(document.createTextNode(parts.join(' · ') || '—'));
+        (file.flags || []).forEach(flag => notes.appendChild(makeElement('span', 'passport-flag ' + flag.level, '⚠ ' + flag.message)));
+        row.appendChild(notes);
+        table.appendChild(row);
+      });
+      card.appendChild(table);
+      passportArea.appendChild(card);
+    }
 
     function makeElement(tag, className, text) {
       const element = document.createElement(tag);
@@ -620,6 +780,8 @@ export class AgentPanel {
       output.textContent = '';
       state.activities = [];
       renderActivity();
+      state.verifyEvents = [];
+      renderVerification();
       setBusy(true);
       vscode.postMessage({ type: 'submit', text: input.value });
       input.value = '';
@@ -672,6 +834,10 @@ export class AgentPanel {
       state.outcomes.clear();
       state.applying = false;
       clear(resultArea);
+      state.verifyEvents = [];
+      state.passport = null;
+      renderVerification();
+      renderPassport();
       updateReviewSummary();
     });
 
@@ -682,6 +848,8 @@ export class AgentPanel {
       const changeId = target.dataset.changeId;
       if (action === 'dismiss-error') {
         clear(errorArea);
+      } else if (action === 'copy-passport') {
+        vscode.postMessage({ type: 'copy_passport' });
       } else if (action === 'select-file' && changeId) {
         state.selectedId = changeId;
         renderFileList();
@@ -779,6 +947,30 @@ export class AgentPanel {
         updateReviewSummary();
       } else if (message.type === 'apply_result') {
         showApplyResult(message);
+      } else if (message.type === 'busy') {
+        if (message.busy) {
+          setBusy(true);
+          if (message.label) status.textContent = message.label;
+        } else {
+          setBusy(false);
+          const last = state.verifyEvents[state.verifyEvents.length - 1];
+          status.textContent = !last ? 'Turn complete.' :
+            last.phase === 'passed' ? 'Done · changes verified in a sandbox. Review and apply.' :
+            last.phase === 'failed' ? 'Done · tests still failing — review carefully before applying.' : 'Turn complete.';
+        }
+      } else if (message.type === 'model_info') {
+        modelBadge.hidden = false;
+        modelBadge.textContent = message.model + (message.fallbackFrom ? '  ·  fallback from ' + message.fallbackFrom : '');
+        modelBadge.className = 'model-badge' + (message.fallbackFrom ? ' fallback' : '');
+        modelBadge.title = message.fallbackFrom ? 'Automatic fallback: ' + message.fallbackFrom + ' failed' : 'Model answering this request';
+      } else if (message.type === 'verification') {
+        const last = state.verifyEvents[state.verifyEvents.length - 1];
+        if (last && last.phase === 'running' && message.phase !== 'fixing') state.verifyEvents.pop();
+        state.verifyEvents.push(message);
+        renderVerification();
+      } else if (message.type === 'passport') {
+        state.passport = message.passport || null;
+        renderPassport();
       }
     });
 

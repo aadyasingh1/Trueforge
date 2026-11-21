@@ -7,6 +7,9 @@ export function getSettings() {
     model: config.get<string>('model', 'openrouter/north-mini-code'),
     fallbackModels: config.get<string[]>('fallbackModels', []),
     contextTokenBudget: config.get<number>('contextTokenBudget', 8000),
+    verifyEnabled: config.get<boolean>('verify.enabled', true),
+    verifyCommand: config.get<string>('verify.command', ''),
+    verifyMaxFixRounds: Math.max(0, Math.min(5, config.get<number>('verify.maxFixRounds', 2))),
   };
 }
 

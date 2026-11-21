@@ -53,6 +53,37 @@ export interface PendingChange {
   fileDecision: boolean | null;
 }
 
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+export interface PassportFlag { level: RiskLevel; code: string; message: string }
+
+export interface PassportFile {
+  path: string;
+  isNew: boolean;
+  isTest: boolean;
+  added: number;
+  removed: number;
+  originalLines: number;
+  /** Functions/classes the change defines. */
+  symbols: string[];
+  /** Other workspace files that import this file (its blast radius). */
+  dependents: string[];
+  flags: PassportFlag[];
+  risk: RiskLevel;
+}
+
+export interface ChangePassport {
+  createdAt: number;
+  model?: string;
+  files: PassportFile[];
+  totals: { files: number; added: number; removed: number; dependents: number; flags: number };
+  testsTouched: boolean;
+  verification?: { passed: boolean; command: string; summary: string; fixRounds: number };
+  risk: RiskLevel;
+}
+
+export type VerifyPhase = 'running' | 'passed' | 'failed' | 'fixing' | 'skipped';
+
 export type PanelOutboundMessage =
   | { type: 'text_delta'; content: string }
   | { type: 'text_done'; fullContent: string }
@@ -64,6 +95,20 @@ export type PanelOutboundMessage =
   | { type: 'turn_done'; status: 'done' | 'cancelled' | 'error'; message?: string }
   | { type: 'cancelled_with_proposals'; count: number }
   | { type: 'error'; message: string; recoverable: boolean }
+  | { type: 'busy'; busy: boolean; label?: string }
+  | { type: 'model_info'; model: string; fallbackFrom?: string }
+  | {
+      type: 'verification';
+      phase: VerifyPhase;
+      command?: string;
+      summary: string;
+      round: number;
+      maxRounds: number;
+      source: 'agent' | 'auto';
+      output?: string;
+      durationMs?: number;
+    }
+  | { type: 'passport'; passport: ChangePassport | null }
   | {
       type: 'apply_result';
       success: boolean;
@@ -83,7 +128,8 @@ export type PanelInboundMessage =
   | { type: 'accept_hunk'; changeId: string; hunkId: string }
   | { type: 'reject_hunk'; changeId: string; hunkId: string }
   | { type: 'apply_accepted' }
-  | { type: 'discard_all' };
+  | { type: 'discard_all' }
+  | { type: 'copy_passport' };
 
 export interface WorkspaceFile { path: string; absPath: string; sizeBytes: number; language: string }
 export interface SearchResult { path: string; absPath: string; line: number; column: number; lineContent: string }

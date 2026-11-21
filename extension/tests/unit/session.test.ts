@@ -18,6 +18,9 @@ beforeEach(() => {
     model: 'test-model',
     fallbackModels: [],
     contextTokenBudget: 8000,
+    verifyEnabled: true,
+    verifyCommand: '',
+    verifyMaxFixRounds: 2,
   });
   const client = {
     sessions: { create: mockCreate },
